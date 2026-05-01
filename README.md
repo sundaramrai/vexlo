@@ -20,6 +20,7 @@ cmd/server          Server entrypoint
 cmd/client          Client CLI entrypoint
 internal/server     HTTP/API/tunnel server implementation
 internal/client     Tunnel client implementation
+internal/model      Shared data models
 internal/storage    SQLite layer
 internal/dashboard  Embedded dashboard HTML + websocket hub
 internal/replay     Replay and diff logic
@@ -43,6 +44,7 @@ This starts:
 - Dashboard/API on `http://localhost:8080`
 - Binary tunnel listener on `127.0.0.1:9000`
 - SSH tunnel listener on `127.0.0.1:2222`
+- SQLite database at `./vexlo.db` by default, configurable with `--db`
 
 By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
 
@@ -142,6 +144,7 @@ go build ./...
 - For TLS, start the server with `--tls`, expose ports `80` and `443`, and point your base domain plus subdomains at the VPS.
 - The current local-first flow uses `/t/<subdomain>` when `--base-domain localhost`.
 - Native `ssh -R` sessions proxy traffic correctly, but request routing to multiple target ports is still best served by the Vexlo CLI or WebSocket client because OpenSSH remote forwarding maps to a single local target.
+- API responses include `X-Request-Id`, and server logs now emit request IDs plus status and duration metadata for API and WebSocket endpoints.
 - Deployment artifacts for Oracle Ubuntu, `systemd`, and DuckDNS are in [deploy/README.md](deploy/README.md).
 
 ## Production server example
