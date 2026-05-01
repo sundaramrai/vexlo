@@ -23,6 +23,7 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "bye") }()
+	closeCtx := conn.CloseRead(r.Context())
 
 	client := &dashboard.Client{SessionID: sessionID, Send: make(chan []byte, 128)}
 	s.hub.Register(client)
@@ -31,11 +32,11 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-closeCtx.Done():
 			slog.InfoContext(r.Context(), "events websocket disconnected", logAttrs(r, "session_id", sessionID)...)
 			return
 		case msg := <-client.Send:
-			if err := conn.Write(r.Context(), websocket.MessageText, msg); err != nil {
+			if err := conn.Write(closeCtx, websocket.MessageText, msg); err != nil {
 				slog.WarnContext(r.Context(), "events websocket write failed", logAttrs(r, "session_id", sessionID, "error", err.Error())...)
 				return
 			}
