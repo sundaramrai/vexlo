@@ -106,13 +106,13 @@ func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tun
 		Path:            r.URL.Path,
 		Query:           r.URL.RawQuery,
 		Headers:         marshalHeaders(r.Header),
-		Body:            string(body),
+		Body:            captureBody(body, s.cfg.CaptureBodyLimit),
 		ResponseStatus:  resp.StatusCode,
 		ResponseHeaders: marshalHeaders(resp.Headers),
-		ResponseBody:    string(resp.Body),
+		ResponseBody:    captureBody(resp.Body, s.cfg.CaptureBodyLimit),
 		DurationMS:      time.Since(start).Milliseconds(),
 		CreatedAt:       time.Now().UTC(),
-		DecodedHeaders:  headerJSONToMap(marshalHeaders(r.Header)),
+		DecodedHeaders:  flattenHeaders(r.Header),
 	}
 	s.db.InsertRequest(record)
 	s.hub.Broadcast(dashboard.Event{
