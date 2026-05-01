@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -17,6 +18,14 @@ import (
 
 	"vexlo/internal/protocol"
 )
+
+var sshSignerOnce = sync.OnceValues(func() (ssh.Signer, error) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.NewSignerFromKey(key)
+})
 
 type Config struct {
 	ServerAddr string
@@ -142,11 +151,7 @@ func dialWS(ctx context.Context, cfg Config) (net.Conn, error) {
 }
 
 func dialSSH(cfg Config, sessionID string) (net.Conn, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	signer, err := ssh.NewSignerFromKey(key)
+	signer, err := sshSignerOnce()
 	if err != nil {
 		return nil, err
 	}
