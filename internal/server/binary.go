@@ -2,7 +2,7 @@ package server
 
 import (
 	"bufio"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -33,12 +33,13 @@ func (s *Server) handleBinaryConn(conn net.Conn) {
 	var reg protocol.Register
 	kind, err := protocol.Decode(reader, &reg)
 	if err != nil || kind != protocol.TypeRegister {
-		log.Printf("binary register failed: %v", err)
+		slog.Warn("binary register failed", "remote_addr", conn.RemoteAddr().String(), "error", err)
 		_ = conn.Close()
 		return
 	}
 	registered, tunnel, err := s.manager.Register(conn, reg)
 	if err != nil {
+		slog.Warn("binary tunnel registration failed", "remote_addr", conn.RemoteAddr().String(), "error", err)
 		_ = conn.Close()
 		return
 	}
@@ -49,7 +50,7 @@ func (s *Server) handleBinaryConn(conn net.Conn) {
 }
 
 func (s *Server) handleBinaryRegister(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "use raw TCP or websocket tunnel registration", http.StatusNotImplemented)
+	s.writeError(w, r, http.StatusNotImplemented, "use raw TCP or websocket tunnel registration", nil)
 }
 
 func bufioReader(conn net.Conn) *bufio.Reader {
