@@ -56,7 +56,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConnectPage(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><title>Vexlo Connect</title></head><body style="background:#0d0d0d;color:#e5e5e5;font-family:monospace;padding:24px"><h1>Vexlo Browser Client</h1><p>Open the main dashboard and use the browser client script from the footer. This endpoint is reserved for browser tunnel usage.</p></body></html>`))
+	_, _ = w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><title>Vexlo Connect</title></head><body style="background:#0d0d0d;color:#e5e5e5;font-family:monospace;padding:24px"><h1>Vexlo Browser Client</h1><p>Open the main dashboard to inspect requests and manage the browser tunnel. This endpoint is reserved for browser tunnel usage.</p></body></html>`))
 }
 
 func (s *Server) handlePathTunnel(w http.ResponseWriter, r *http.Request) {
