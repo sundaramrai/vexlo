@@ -17,7 +17,7 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		slog.WarnContext(r.Context(), "websocket accept failed", logAttrs(r, "error", err.Error())...)
 		return
@@ -44,7 +44,7 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTunnelWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		slog.WarnContext(r.Context(), "tunnel websocket accept failed", logAttrs(r, "error", err.Error())...)
 		return
