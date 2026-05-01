@@ -1,0 +1,25 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/vexlo-server-linux-amd64 ./cmd/server
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/vexlo-linux-amd64 ./cmd/client
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/vexlo-darwin-amd64 ./cmd/client
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/vexlo-darwin-arm64 ./cmd/client
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/vexlo-windows-amd64.exe ./cmd/client
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
