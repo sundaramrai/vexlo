@@ -80,6 +80,9 @@ func (db *DB) migrate() error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (session_id) REFERENCES sessions(id)
 		)`,
+		`CREATE INDEX IF NOT EXISTS idx_requests_session_created_at ON requests(session_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_replays_request_created_at ON replays(request_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_routing_rules_session_priority ON routing_rules(session_id, priority)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.sql.Exec(stmt); err != nil {
