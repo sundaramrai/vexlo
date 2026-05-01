@@ -23,6 +23,7 @@ func main() {
 	flag.BoolVar(&cfg.EnableTLS, "tls", false, "enable HTTPS with Let's Encrypt autocert")
 	flag.StringVar(&cfg.ACMEEmail, "acme-email", "", "email used for Let's Encrypt registration")
 	flag.StringVar(&cfg.ACMECache, "acme-cache", "acme-cache", "directory used to cache Let's Encrypt certificates")
+	flag.IntVar(&cfg.CaptureBodyLimit, "capture-body-limit", 256*1024, "max request/response body bytes to retain for dashboard storage; 0 disables the limit")
 	flag.Parse()
 
 	srv, err := server.New(cfg)
