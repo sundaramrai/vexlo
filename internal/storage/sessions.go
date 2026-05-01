@@ -1,0 +1,95 @@
+package storage
+
+import (
+	"database/sql"
+	"time"
+
+	"vexlo/internal/model"
+)
+
+func (db *DB) UpsertSession(session model.Session) error {
+	_, err := db.sql.Exec(`INSERT INTO sessions (id, subdomain, local_port, connection_type, auth_token, started_at, ended_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			subdomain = excluded.subdomain,
+			local_port = excluded.local_port,
+			connection_type = excluded.connection_type,
+			auth_token = excluded.auth_token,
+			started_at = excluded.started_at,
+			ended_at = excluded.ended_at`,
+		session.ID, session.Subdomain, session.LocalPort, session.ConnectionType, session.AuthToken, session.StartedAt, nil)
+	return err
+}
+
+func (db *DB) EndSession(id string, endedAt time.Time) error {
+	_, err := db.sql.Exec(`UPDATE sessions SET ended_at = ? WHERE id = ?`, endedAt, id)
+	return err
+}
+
+func (db *DB) GetSession(id string) (*model.Session, error) {
+	var sess model.Session
+	var endedAt sql.NullTime
+	err := db.sql.QueryRow(`SELECT id, subdomain, local_port, connection_type, auth_token, started_at, ended_at FROM sessions WHERE id = ?`, id).
+		Scan(&sess.ID, &sess.Subdomain, &sess.LocalPort, &sess.ConnectionType, &sess.AuthToken, &sess.StartedAt, &endedAt)
+	if err != nil {
+		return nil, err
+	}
+	if endedAt.Valid {
+		sess.EndedAt = &endedAt.Time
+	}
+	return &sess, nil
+}
+
+func (db *DB) ListSessions() ([]model.Session, error) {
+	rows, err := db.sql.Query(`SELECT id, subdomain, local_port, connection_type, auth_token, started_at, ended_at FROM sessions ORDER BY started_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var sessions []model.Session
+	for rows.Next() {
+		var sess model.Session
+		var endedAt sql.NullTime
+		if err := rows.Scan(&sess.ID, &sess.Subdomain, &sess.LocalPort, &sess.ConnectionType, &sess.AuthToken, &sess.StartedAt, &endedAt); err != nil {
+			return nil, err
+		}
+		if endedAt.Valid {
+			sess.EndedAt = &endedAt.Time
+		}
+		sessions = append(sessions, sess)
+	}
+	return sessions, rows.Err()
+}
+
+func (db *DB) ListRules(sessionID string) ([]model.RoutingRule, error) {
+	rows, err := db.sql.Query(`SELECT id, session_id, match_method, match_path, match_header_key, match_header_value, target_port, priority, created_at
+		FROM routing_rules WHERE session_id = ? ORDER BY priority ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var rules []model.RoutingRule
+	for rows.Next() {
+		var rule model.RoutingRule
+		if err := rows.Scan(&rule.ID, &rule.SessionID, &rule.MatchMethod, &rule.MatchPath, &rule.MatchHeaderKey, &rule.MatchHeaderValue, &rule.TargetPort, &rule.Priority, &rule.CreatedAt); err != nil {
+			return nil, err
+		}
+		rules = append(rules, rule)
+	}
+	return rules, rows.Err()
+}
+
+func (db *DB) InsertRule(rule model.RoutingRule) error {
+	_, err := db.sql.Exec(`INSERT INTO routing_rules
+		(id, session_id, match_method, match_path, match_header_key, match_header_value, target_port, priority)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		rule.ID, rule.SessionID, rule.MatchMethod, rule.MatchPath, rule.MatchHeaderKey, rule.MatchHeaderValue, rule.TargetPort, rule.Priority)
+	return err
+}
+
+func (db *DB) DeleteRule(id string) error {
+	_, err := db.sql.Exec(`DELETE FROM routing_rules WHERE id = ?`, id)
+	return err
+}
+
+var _ = sql.ErrNoRows
