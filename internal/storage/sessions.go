@@ -92,4 +92,17 @@ func (db *DB) DeleteRule(id string) error {
 	return err
 }
 
-var _ = sql.ErrNoRows
+func (db *DB) DeleteRuleForSession(sessionID, id string) error {
+	result, err := db.sql.Exec(`DELETE FROM routing_rules WHERE id = ? AND session_id = ?`, id, sessionID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
