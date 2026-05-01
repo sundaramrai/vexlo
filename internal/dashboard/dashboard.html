@@ -1,510 +1,153 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vexlo</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0d0d0d;
-        --panel: #111;
-        --line: #1a1a1a;
-        --text: #d8d8d8;
-        --muted: #6a6a6a;
-        --green: #28c840;
-        --yellow: #febc2e;
-        --blue: #0a84ff;
-        --red: #ff5f57;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      }
-      .shell {
-        min-height: 100vh;
-        display: grid;
-        grid-template-rows: 60px 1fr 54px;
-      }
-      .top,
-      .bottom {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        border-bottom: 1px solid var(--line);
-        padding: 0 22px;
-      }
-      .bottom {
-        border-top: 1px solid var(--line);
-        border-bottom: none;
-        color: var(--muted);
-      }
-      .body {
-        display: grid;
-        grid-template-columns: 320px 1fr;
-        min-height: 0;
-      }
-      .left {
-        border-right: 1px solid var(--line);
-        overflow: auto;
-      }
-      .right {
-        display: grid;
-        grid-template-rows: auto auto 1fr;
-        min-height: 0;
-      }
-      .title {
-        color: var(--green);
-        font-weight: 700;
-      }
-      .muted {
-        color: var(--muted);
-      }
-      .filters,
-      .actions,
-      .tabs,
-      .detail-grid {
-        display: flex;
-        gap: 12px;
-        padding: 16px;
-      }
-      .detail-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        min-height: 0;
-      }
-      button,
-      input,
-      textarea,
-      select {
-        background: #101010;
-        color: var(--text);
-        border: 1px solid #303030;
-        border-radius: 12px;
-        font: inherit;
-      }
-      button {
-        padding: 12px 16px;
-        cursor: pointer;
-      }
-      input,
-      select {
-        padding: 10px 12px;
-      }
-      textarea {
-        width: 100%;
-        min-height: 180px;
-        padding: 12px;
-        resize: vertical;
-      }
-      .request {
-        padding: 14px 16px;
-        border-top: 1px solid var(--line);
-        cursor: pointer;
-      }
-      .request.active {
-        background: #151515;
-        border-left: 3px solid var(--green);
-        padding-left: 13px;
-      }
-      .badge {
-        display: inline-block;
-        min-width: 56px;
-        font-weight: 700;
-      }
-      .panel {
-        border: 1px solid #252525;
-        border-radius: 12px;
-        background: #101010;
-        padding: 16px;
-        min-height: 280px;
-        overflow: auto;
-      }
-      .tab {
-        color: var(--muted);
-        padding-bottom: 8px;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-      }
-      .tab.active {
-        color: var(--green);
-        border-color: var(--green);
-      }
-      pre {
-        white-space: pre-wrap;
-        word-break: break-word;
-        margin: 0;
-      }
-      .row {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-      }
-      .grow {
-        flex: 1;
-      }
-      .status-ok {
-        color: var(--green);
-      }
-      .status-warn {
-        color: var(--yellow);
-      }
-      .status-bad {
-        color: var(--red);
-      }
-      .method-GET {
-        color: var(--green);
-      }
-      .method-POST {
-        color: var(--yellow);
-      }
-      .method-PUT {
-        color: var(--blue);
-      }
-      .method-DELETE,
-      .method-DEL {
-        color: var(--red);
-      }
-      .diff-added {
-        color: var(--green);
-      }
-      .diff-removed {
-        color: var(--red);
-      }
-      .diff-changed {
-        color: var(--yellow);
-      }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <div class="top">
-        <div class="row">
-          <span class="title" id="tunnel-url">no active tunnel</span
-          ><span class="muted" id="connection-status">offline</span>
-        </div>
-        <div class="row">
-          <span class="muted" id="request-count">0 requests</span
-          ><span class="muted" id="session-duration">00:00:00</span>
-        </div>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Vexlo</title>
+  <link rel="stylesheet" href="/assets/dashboard.css" />
+</head>
+
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="status-stack">
+        <span class="title" id="tunnel-url">no active tunnel</span>
+        <span class="chip">
+          <span class="connection-dot" id="connection-dot"></span>
+          <span id="connection-status">offline</span>
+        </span>
       </div>
-      <div class="body">
-        <aside class="left">
-          <div class="filters">
-            <button data-method="ALL">ALL</button
-            ><button data-method="GET">GET</button
-            ><button data-method="POST">POST</button
-            ><button data-method="PUT">PUT</button
-            ><button data-method="DELETE">DEL</button>
+      <div class="topbar-meta">
+        <span class="subtle" id="request-count">0 requests</span>
+        <span class="subtle" id="session-duration">00:00:00</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="filter-group" id="method-filters" aria-label="Method filters">
+          <button type="button" class="method-filter active" data-method="ALL">
+            ALL
+          </button>
+          <button type="button" class="method-filter" data-method="GET">
+            GET
+          </button>
+          <button type="button" class="method-filter" data-method="POST">
+            POST
+          </button>
+          <button type="button" class="method-filter" data-method="PUT">
+            PUT
+          </button>
+          <button type="button" class="method-filter" data-method="DELETE">
+            DELETE
+          </button>
+        </div>
+
+        <div class="search-wrap">
+          <label class="sr-only" for="search">Search requests</label>
+          <input id="search" type="search" placeholder="search method, path, body, or response" autocomplete="off" />
+        </div>
+
+        <div class="subtle" id="list-state">Loading requests...</div>
+
+        <div class="request-list" id="request-list" aria-label="Captured requests"></div>
+      </aside>
+
+      <main class="main">
+        <div class="banner" id="error-banner" role="alert"></div>
+
+        <div class="toolbar">
+          <div class="toolbar-title">
+            <strong id="selected-title">Select a request</strong>
+            <span class="detail-meta" id="selected-meta">Live traffic appears here as requests arrive.</span>
           </div>
-          <div class="filters">
-            <input
-              id="search"
-              class="grow"
-              placeholder="search request or response"
-            />
+          <div class="toolbar-actions">
+            <button type="button" id="copy-curl" disabled>copy curl</button>
+            <button type="button" id="replay" disabled>replay</button>
           </div>
-          <div id="request-list"></div>
-        </aside>
-        <section class="right">
-          <div class="actions">
-            <div class="grow row">
-              <strong id="selected-title">Select a request</strong>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Request details tabs">
+          <button type="button" class="tab-button active" data-tab="request" role="tab" aria-selected="true">
+            REQUEST
+          </button>
+          <button type="button" class="tab-button" data-tab="response" role="tab" aria-selected="false">
+            RESPONSE
+          </button>
+          <button type="button" class="tab-button" data-tab="mutate" role="tab" aria-selected="false">
+            MUTATE
+          </button>
+          <button type="button" class="tab-button" data-tab="diff" role="tab" aria-selected="false">
+            DIFF
+          </button>
+        </div>
+
+        <div class="detail-grid">
+          <section class="panel" id="left-panel" aria-live="polite"></section>
+          <section class="panel" id="right-panel"></section>
+        </div>
+
+        <div class="rules-wrap">
+          <div class="rules-card">
+            <div class="rule-header">
+              <div>
+                <strong>Route rules</strong>
+                <div class="help">
+                  Match incoming request paths and route them to a different
+                  local port.
+                </div>
+              </div>
             </div>
-            <button id="copy-curl">copy curl</button>
-            <button id="replay">replay</button>
+
+            <form id="rule-form" class="split">
+              <div class="rules-grid">
+                <div class="field">
+                  <label for="rule-path">Match path contains</label>
+                  <input id="rule-path" name="match_path" placeholder="/api" />
+                </div>
+                <div class="field">
+                  <label for="rule-method">Method</label>
+                  <select id="rule-method" name="match_method">
+                    <option value="">Any</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="rule-target-port">Target port</label>
+                  <input id="rule-target-port" name="target_port" type="number" min="1" step="1" placeholder="4000"
+                    required />
+                </div>
+                <div class="field">
+                  <label for="rule-priority">Priority</label>
+                  <input id="rule-priority" name="priority" type="number" min="1" step="1" placeholder="auto" />
+                </div>
+              </div>
+              <div class="rule-inline">
+                <button type="submit" id="add-rule">add rule</button>
+                <span class="help" id="rules-status">No rules loaded yet.</span>
+              </div>
+            </form>
+
+            <div class="rule-list" id="rule-list"></div>
           </div>
-          <div class="tabs">
-            <div class="tab active" data-tab="request">REQUEST</div>
-            <div class="tab" data-tab="response">RESPONSE</div>
-            <div class="tab" data-tab="mutate">MUTATE</div>
-            <div class="tab" data-tab="diff">DIFF</div>
-          </div>
-          <div class="detail-grid">
-            <div class="panel" id="left-panel"></div>
-            <div class="panel" id="right-panel"></div>
-          </div>
-        </section>
-      </div>
-      <div class="bottom">
-        <div id="replay-status">last replay none</div>
-        <div class="row">
-          <span>route rules</span><button id="add-rule">add rule</button>
         </div>
-      </div>
+
+        <footer class="footer">
+          <div class="footer-row" id="replay-status">last replay none</div>
+          <div class="footer-row subtle" id="footer-status"></div>
+        </footer>
+      </main>
     </div>
-    <script type="module">
-      const params = new URLSearchParams(location.search);
-      const state = {
-        requests: [],
-        selectedRequest: null,
-        replayResponse: null,
-        filterMethod: "ALL",
-        searchQuery: "",
-        tab: "request",
-        rules: [],
-        session: params.get("session"),
-        token: params.get("token"),
-        sessionInfo: null,
-      };
-      const apiBase = (path) =>
-        `${path}?session=${encodeURIComponent(state.session || "")}&token=${encodeURIComponent(state.token || "")}`;
-      function setState(next) {
-        Object.assign(state, next);
-        render();
-      }
-      function fmtJSON(raw) {
-        try {
-          return JSON.stringify(JSON.parse(raw || "{}"), null, 2);
-        } catch {
-          return raw || "";
-        }
-      }
-      function statusClass(code) {
-        if (code >= 500) return "status-bad";
-        if (code >= 400) return "status-warn";
-        return "status-ok";
-      }
-      function renderRequestList() {
-        const el = document.getElementById("request-list");
-        const list = state.requests.filter(
-          (r) =>
-            (state.filterMethod === "ALL" || r.method === state.filterMethod) &&
-            (!state.searchQuery ||
-              (r.body || "").includes(state.searchQuery) ||
-              (r.response_body || "").includes(state.searchQuery) ||
-              (r.path || "").includes(state.searchQuery)),
-        );
-        document.getElementById("request-count").textContent =
-          `${list.length} requests`;
-        el.innerHTML = list
-          .map(
-            (r) =>
-              `<div class="request ${state.selectedRequest && state.selectedRequest.id === r.id ? "active" : ""}" data-id="${r.id}"><div class="row"><span class="badge method-${r.method}">${r.method}</span><span class="grow">${r.path}</span><span class="${statusClass(r.response_status)}">${r.response_status}</span><span class="muted">${r.duration_ms}ms</span></div></div>`,
-          )
-          .join("");
-        el.querySelectorAll(".request").forEach(
-          (node) => (node.onclick = () => openRequest(node.dataset.id)),
-        );
-      }
-      async function openRequest(id) {
-        const res = await fetch(apiBase(`/api/requests/${id}`));
-        if (!res.ok) return;
-        const req = await res.json();
-        setState({ selectedRequest: req });
-      }
-      function renderRequestDetail() {
-        const req = state.selectedRequest;
-        const left = document.getElementById("left-panel");
-        const right = document.getElementById("right-panel");
-        if (!req) {
-          left.innerHTML = '<span class="muted">No request selected</span>';
-          right.innerHTML = '<span class="muted">No data</span>';
-          return;
-        }
-        document.getElementById("selected-title").textContent =
-          `${req.method} ${req.path}`;
-        if (state.tab === "request") {
-          left.innerHTML = `<pre>${fmtJSON(req.headers)}\n\n${fmtJSON(req.body)}</pre>`;
-          right.innerHTML = `<pre>${fmtJSON(req.body)}</pre>`;
-        } else if (state.tab === "response") {
-          left.innerHTML = `<pre>Status ${req.response_status}\n\n${fmtJSON(req.response_headers)}\n\n${fmtJSON(req.response_body)}</pre>`;
-          right.innerHTML = `<pre>${fmtJSON(req.response_body)}</pre>`;
-        } else if (state.tab === "mutate") {
-          left.innerHTML = `<div class="muted">Headers JSON</div><textarea id="mutate-headers">${fmtJSON(req.headers)}</textarea>`;
-          right.innerHTML = `<div class="muted">Body</div><textarea id="mutate-body">${req.body || ""}</textarea>`;
-        } else {
-          const diff = req.replay
-            ? JSON.parse(req.replay.diff_result || "{}")
-            : null;
-          left.innerHTML = `<pre>${fmtJSON(req.response_body)}</pre>`;
-          right.innerHTML = diff
-            ? renderDiff(diff)
-            : '<span class="muted">No replay yet</span>';
-        }
-      }
-      function renderDiff(diff) {
-        if (diff.mode === "text") {
-          const parts = (diff.text || []).map(
-            (item) =>
-              '<div class="diff-' +
-              item.type +
-              '">' +
-              item.type +
-              ": " +
-              escapeHTML(item.value) +
-              "</div>",
-          );
-          return "<pre>" + parts.join("") + "</pre>";
-        }
-        const lines = [];
-        Object.entries(diff.removed || {}).forEach(([k, v]) =>
-          lines.push(
-            `<div class="diff-removed">- "${k}": ${escapeHTML(JSON.stringify(v))}</div>`,
-          ),
-        );
-        Object.entries(diff.added || {}).forEach(([k, v]) =>
-          lines.push(
-            `<div class="diff-added">+ "${k}": ${escapeHTML(JSON.stringify(v))}</div>`,
-          ),
-        );
-        Object.entries(diff.changed || {}).forEach(([k, v]) =>
-          lines.push(
-            `<div class="diff-changed">~ "${k}": ${escapeHTML(JSON.stringify(v.from))} -> ${escapeHTML(JSON.stringify(v.to))}</div>`,
-          ),
-        );
-        return `<pre>${lines.join("") || "No differences"}</pre>`;
-      }
-      function escapeHTML(value) {
-        return String(value)
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;");
-      }
-      function render() {
-        renderRequestList();
-        renderRequestDetail();
-      }
-      async function loadInitial() {
-        const sessions = await fetch(apiBase("/api/sessions"))
-          .then((r) => r.json())
-          .catch(() => []);
-        let current = sessions.find((s) => s.id === state.session);
-        if (!current && sessions.length) current = sessions[0];
-        if (current) {
-          state.session = current.id;
-          state.sessionInfo = current;
-          document.getElementById("tunnel-url").textContent =
-            location.origin + "/t/" + current.subdomain;
-        }
-        const requests = await fetch(apiBase("/api/requests"))
-          .then((r) => r.json())
-          .catch(() => []);
-        const rules = await fetch(apiBase("/api/rules"))
-          .then((r) => r.json())
-          .catch(() => []);
-        setState({
-          requests,
-          rules,
-          selectedRequest: requests[0] || null,
-          sessionInfo: current,
-        });
-        connectWS();
-        setInterval(updateTimer, 1000);
-      }
-      function connectWS() {
-        if (!state.session) return;
-        const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const ws = new WebSocket(
-          `${protocol}//${location.host}/ws/events?session=${encodeURIComponent(state.session)}&token=${encodeURIComponent(state.token || "")}`,
-        );
-        ws.onopen = () =>
-          (document.getElementById("connection-status").textContent =
-            "connected");
-        ws.onclose = () => {
-          document.getElementById("connection-status").textContent = "offline";
-          setTimeout(connectWS, 3000);
-        };
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === "new_request")
-            setState({ requests: [data.payload, ...state.requests] });
-        };
-      }
-      function updateTimer() {
-        const first = state.requests[state.requests.length - 1];
-        if (!first) return;
-        const started = new Date(first.created_at).getTime();
-        const delta = Math.floor((Date.now() - started) / 1000);
-        const h = String(Math.floor(delta / 3600)).padStart(2, "0");
-        const m = String(Math.floor((delta % 3600) / 60)).padStart(2, "0");
-        const s = String(delta % 60).padStart(2, "0");
-        document.getElementById("session-duration").textContent =
-          `${h}:${m}:${s}`;
-      }
-      document
-        .querySelectorAll("[data-method]")
-        .forEach(
-          (btn) =>
-            (btn.onclick = () =>
-              setState({ filterMethod: btn.dataset.method })),
-        );
-      document.querySelectorAll("[data-tab]").forEach(
-        (tab) =>
-          (tab.onclick = () => {
-            document
-              .querySelectorAll(".tab")
-              .forEach((t) => t.classList.remove("active"));
-            tab.classList.add("active");
-            setState({ tab: tab.dataset.tab });
-          }),
-      );
-      document.getElementById("search").oninput = (e) =>
-        setState({ searchQuery: e.target.value });
-      document.getElementById("replay").onclick = async () => {
-        if (!state.selectedRequest) return;
-        let headers = {};
-        let body = state.selectedRequest.body || "";
-        if (state.tab === "mutate") {
-          try {
-            headers = JSON.parse(
-              document.getElementById("mutate-headers").value || "{}",
-            );
-          } catch {}
-          body = document.getElementById("mutate-body").value;
-        }
-        const res = await fetch(apiBase("/api/replay"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: state.selectedRequest.id,
-            headers,
-            body,
-          }),
-        });
-        const replay = await res.json();
-        document.getElementById("replay-status").textContent =
-          `last replay ${replay.response_status} in ${replay.duration_ms}ms`;
-        await openRequest(state.selectedRequest.id);
-      };
-      document.getElementById("copy-curl").onclick = async () => {
-        if (!state.selectedRequest) return;
-        const req = state.selectedRequest;
-        const path = `${location.origin}/t/${state.sessionInfo ? state.sessionInfo.subdomain : ""}${req.path}${req.query ? "?" + req.query : ""}`;
-        const escapeForSingleQuotes = (s) =>
-          (s || "").replaceAll("'", "'\"'\"'");
-        const curl = [
-          `curl -X ${req.method}`,
-          `'${path}'`,
-          `-d '${escapeForSingleQuotes(req.body)}'`,
-        ].join(" ");
-        await navigator.clipboard.writeText(curl);
-      };
-      document.getElementById("add-rule").onclick = async () => {
-        const target_port = Number(prompt("target port", "4000"));
-        if (!target_port) return;
-        const match_path = prompt("match path contains", "/api");
-        await fetch(apiBase("/api/rules"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            match_path,
-            target_port,
-            priority: Date.now() % 100000,
-          }),
-        });
-        const rules = await fetch(apiBase("/api/rules"))
-          .then((r) => r.json())
-          .catch(() => []);
-        setState({ rules });
-      };
-      await loadInitial();
-    </script>
-  </body>
+  </div>
+
+  <script type="module" src="/assets/dashboard.js"></script>
+</body>
+
 </html>
