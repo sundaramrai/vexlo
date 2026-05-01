@@ -1,0 +1,27 @@
+# Build outputs
+/dist/
+*.exe
+*.test
+
+# Go coverage
+*.out
+
+# Local runtime data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.zip
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# TLS / ACME cache
+/acme-cache/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
