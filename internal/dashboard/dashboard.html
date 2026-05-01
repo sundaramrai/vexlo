@@ -372,7 +372,7 @@
         renderRequestDetail();
       }
       async function loadInitial() {
-        const sessions = await fetch("/api/sessions")
+        const sessions = await fetch(apiBase("/api/sessions"))
           .then((r) => r.json())
           .catch(() => []);
         let current = sessions.find((s) => s.id === state.session);
