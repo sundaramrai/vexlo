@@ -8,7 +8,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -31,7 +31,7 @@ type sshConnState struct {
 func (s *Server) acceptSSH(ctxDone interface{ Done() <-chan struct{} }) {
 	signer, err := sshServerSigner()
 	if err != nil {
-		log.Printf("ssh signer error: %v", err)
+		slog.Error("ssh signer error", "error", err)
 		return
 	}
 	cfg := &ssh.ServerConfig{
@@ -58,6 +58,7 @@ func (s *Server) acceptSSH(ctxDone interface{ Done() <-chan struct{} }) {
 func (s *Server) handleSSHConn(raw net.Conn, cfg *ssh.ServerConfig) {
 	sshConn, chans, reqs, err := ssh.NewServerConn(raw, cfg)
 	if err != nil {
+		slog.Warn("ssh connection failed", "remote_addr", raw.RemoteAddr().String(), "error", err)
 		_ = raw.Close()
 		return
 	}
@@ -77,6 +78,7 @@ func (s *Server) handleSSHConn(raw net.Conn, cfg *ssh.ServerConfig) {
 			s.manager.closeTunnel(state.tunnel)
 		}
 	}()
+	slog.Info("ssh connection accepted", "remote_addr", raw.RemoteAddr().String())
 
 	go s.handleSSHRequests(ctx, state, reqs)
 	for ch := range chans {
@@ -151,7 +153,11 @@ func (s *Server) handleSSHTCPIPForward(state *sshConnState, req *ssh.Request) {
 	if req.WantReply {
 		_ = req.Reply(true, ssh.Marshal(struct{ Port uint32 }{Port: payload.BindPort}))
 	}
-	log.Printf("SSH remote forward ready: %s -> localhost:%d", registered.ConnectURL, state.localPort)
+	slog.Info("ssh remote forward ready",
+		"session_id", tunnel.session.ID,
+		"connect_url", registered.ConnectURL,
+		"local_port", state.localPort,
+	)
 }
 
 func sshRemoteForwarder(state *sshConnState, bindAddr string, bindPort uint32) forwarderFunc {
