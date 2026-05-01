@@ -17,20 +17,25 @@ import (
 
 const methodNotAllowed = "method not allowed"
 
+const (
+	apiRequestsPath = "/api/requests/"
+	apiRulesPath    = "/api/rules/"
+)
+
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleRoot)
-	mux.HandleFunc("/connect", s.handleConnectPage)
-	mux.HandleFunc("/api/sessions", s.handleSessions)
-	mux.HandleFunc("/api/requests", s.handleRequests)
-	mux.HandleFunc("/api/requests/", s.handleRequestByID)
-	mux.HandleFunc("/api/replay", s.handleReplay)
-	mux.HandleFunc("/api/rules", s.handleRules)
-	mux.HandleFunc("/api/rules/", s.handleRuleByID)
-	mux.HandleFunc("/ws/events", s.handleEventsWS)
-	mux.HandleFunc("/ws/tunnel", s.handleTunnelWS)
-	mux.HandleFunc("/tunnel/connect", s.handleBinaryRegister)
-	mux.HandleFunc("/t/", s.handlePathTunnel)
+	mux.HandleFunc("/", s.withRequestLogging("root", s.handleRoot))
+	mux.HandleFunc("/connect", s.withRequestLogging("connect_page", s.handleConnectPage))
+	mux.HandleFunc("/api/sessions", s.withRequestLogging("list_sessions", s.handleSessions))
+	mux.HandleFunc("/api/requests", s.withRequestLogging("list_requests", s.handleRequests))
+	mux.HandleFunc(apiRequestsPath, s.withRequestLogging("get_request", s.handleRequestByID))
+	mux.HandleFunc("/api/replay", s.withRequestLogging("replay_request", s.handleReplay))
+	mux.HandleFunc("/api/rules", s.withRequestLogging("rules", s.handleRules))
+	mux.HandleFunc(apiRulesPath, s.withRequestLogging("delete_rule", s.handleRuleByID))
+	mux.HandleFunc("/ws/events", s.withRequestLogging("events_ws", s.handleEventsWS))
+	mux.HandleFunc("/ws/tunnel", s.withRequestLogging("tunnel_ws", s.handleTunnelWS))
+	mux.HandleFunc("/tunnel/connect", s.withRequestLogging("binary_register", s.handleBinaryRegister))
+	mux.HandleFunc("/t/", s.withRequestLogging("path_tunnel", s.handlePathTunnel))
 	return mux
 }
 
@@ -73,7 +78,7 @@ func (s *Server) handlePathTunnel(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tunnel *Tunnel) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		s.writeError(w, r, http.StatusBadRequest, "failed to read request body", err)
 		return
 	}
 	_ = r.Body.Close()
@@ -84,7 +89,10 @@ func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tun
 	start := time.Now()
 	resp, err := s.manager.Forward(ctx, tunnel, r, body, targetPort)
 	if err != nil {
-		http.Error(w, "tunnel unavailable: "+err.Error(), http.StatusBadGateway)
+		s.writeError(w, r, http.StatusBadGateway, "tunnel unavailable", err,
+			"session_id", tunnel.session.ID,
+			"target_port", targetPort,
+		)
 		return
 	}
 
@@ -124,12 +132,12 @@ func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tun
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
 	sessions, err := s.db.ListSessions()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeError(w, r, http.StatusInternalServerError, "failed to list sessions", err)
 		return
 	}
 	writeJSON(w, sessions)
@@ -137,17 +145,17 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRequests(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
 	sessionID, err := s.authorize(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
 	requests, err := s.db.ListRequests(sessionID, r.URL.Query().Get("method"), r.URL.Query().Get("path"), r.URL.Query().Get("status"), r.URL.Query().Get("search"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeError(w, r, http.StatusInternalServerError, "failed to list requests", err, "session_id", sessionID)
 		return
 	}
 	writeJSON(w, requests)
@@ -155,17 +163,18 @@ func (s *Server) handleRequests(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRequestByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
-	if _, err := s.authorize(r); err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+	sessionID, err := s.authorize(r)
+	if err != nil {
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/requests/")
+	id := strings.TrimPrefix(r.URL.Path, apiRequestsPath)
 	item, err := s.db.GetRequest(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		s.writeError(w, r, http.StatusNotFound, "request not found", err, "session_id", sessionID, "request_record_id", id)
 		return
 	}
 	writeJSON(w, item)
@@ -179,27 +188,27 @@ type replayPayload struct {
 
 func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
 	sessionID, err := s.authorize(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
 	var payload replayPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+		s.writeError(w, r, http.StatusBadRequest, "invalid payload", err, "session_id", sessionID)
 		return
 	}
 	original, err := s.db.GetRequest(payload.RequestID)
 	if err != nil {
-		http.Error(w, "request not found", http.StatusNotFound)
+		s.writeError(w, r, http.StatusNotFound, "request not found", err, "session_id", sessionID, "request_record_id", payload.RequestID)
 		return
 	}
 	tunnel := s.manager.FindBySession(sessionID)
 	if tunnel == nil {
-		http.Error(w, "session tunnel offline", http.StatusBadGateway)
+		s.writeError(w, r, http.StatusBadGateway, "session tunnel offline", nil, "session_id", sessionID)
 		return
 	}
 
@@ -225,7 +234,11 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	resp, err := s.manager.Forward(r.Context(), tunnel, req, []byte(payload.Body), targetPort)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		s.writeError(w, r, http.StatusBadGateway, "replay forward failed", err,
+			"session_id", sessionID,
+			"request_record_id", original.ID,
+			"target_port", targetPort,
+		)
 		return
 	}
 	diff, _ := replay.CompareBodies(original.ResponseBody, string(resp.Body))
@@ -248,21 +261,21 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := s.authorize(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
 	switch r.Method {
 	case http.MethodGet:
 		rules, err := s.db.ListRules(sessionID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.writeError(w, r, http.StatusInternalServerError, "failed to list rules", err, "session_id", sessionID)
 			return
 		}
 		writeJSON(w, rules)
 	case http.MethodPost:
 		var rule model.RoutingRule
 		if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
-			http.Error(w, "invalid payload", http.StatusBadRequest)
+			s.writeError(w, r, http.StatusBadRequest, "invalid payload", err, "session_id", sessionID)
 			return
 		}
 		rule.ID = randomID(8)
@@ -271,7 +284,7 @@ func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 			rule.Priority = int(time.Now().UnixMilli() % 100000)
 		}
 		if err := s.db.InsertRule(rule); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.writeError(w, r, http.StatusInternalServerError, "failed to insert rule", err, "session_id", sessionID)
 			return
 		}
 		if tunnel := s.manager.FindBySession(sessionID); tunnel != nil {
@@ -280,23 +293,23 @@ func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, rule)
 	default:
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 	}
 }
 
 func (s *Server) handleRuleByID(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := s.authorize(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
 	if r.Method != http.MethodDelete {
-		http.Error(w, methodNotAllowed, http.StatusMethodNotAllowed)
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/rules/")
+	id := strings.TrimPrefix(r.URL.Path, apiRulesPath)
 	if err := s.db.DeleteRule(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.writeError(w, r, http.StatusInternalServerError, "failed to delete rule", err, "session_id", sessionID, "rule_id", id)
 		return
 	}
 	if tunnel := s.manager.FindBySession(sessionID); tunnel != nil {
