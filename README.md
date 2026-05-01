@@ -35,7 +35,7 @@ internal/protocol   Framed transport protocol
 ### 2. Run the server
 
 ```bash
-go run ./cmd/server --http-addr :8080 --tcp-addr :9000 --ssh-addr :2222 --base-domain localhost --host-url http://localhost:8080
+go run ./cmd/server --http-addr :8080 --tcp-addr :9000 --ssh-addr :2222 --base-domain localhost --host-url http://localhost:8080 --capture-body-limit 262144
 ```
 
 This starts:
@@ -43,6 +43,8 @@ This starts:
 - Dashboard/API on `http://localhost:8080`
 - Binary tunnel listener on `127.0.0.1:9000`
 - SSH tunnel listener on `127.0.0.1:2222`
+
+By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
 
 ### 3. Run your local app
 
@@ -105,7 +107,6 @@ Linting is enabled through GitHub Actions and `golangci-lint`.
 Current checks:
 
 - `gofmt` formatting check
-- `go vet`
 - `golangci-lint`
 - `go build ./...`
 
@@ -131,7 +132,6 @@ Equivalent manual commands:
 
 ```bash
 gofmt -l cmd internal
-go vet ./...
 golangci-lint run
 go build ./...
 ```
@@ -155,6 +155,7 @@ go build ./...
   --ssh-addr :2222 \
   --base-domain vexlo.example.com \
   --host-url https://vexlo.example.com \
+  --capture-body-limit 262144 \
   --acme-email you@example.com \
   --acme-cache ./acme-cache
 ```
