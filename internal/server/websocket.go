@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/coder/websocket"
@@ -13,11 +14,12 @@ import (
 func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := s.authorize(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
+		slog.WarnContext(r.Context(), "websocket accept failed", logAttrs(r, "error", err.Error())...)
 		return
 	}
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "bye") }()
@@ -25,13 +27,16 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 	client := &dashboard.Client{SessionID: sessionID, Send: make(chan []byte, 128)}
 	s.hub.Register(client)
 	defer s.hub.Unregister(client)
+	slog.InfoContext(r.Context(), "events websocket connected", logAttrs(r, "session_id", sessionID)...)
 
 	for {
 		select {
 		case <-r.Context().Done():
+			slog.InfoContext(r.Context(), "events websocket disconnected", logAttrs(r, "session_id", sessionID)...)
 			return
 		case msg := <-client.Send:
 			if err := conn.Write(r.Context(), websocket.MessageText, msg); err != nil {
+				slog.WarnContext(r.Context(), "events websocket write failed", logAttrs(r, "session_id", sessionID, "error", err.Error())...)
 				return
 			}
 		}
@@ -41,6 +46,7 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTunnelWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
+		slog.WarnContext(r.Context(), "tunnel websocket accept failed", logAttrs(r, "error", err.Error())...)
 		return
 	}
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "bye") }()
@@ -53,6 +59,8 @@ func (s *Server) handleTunnelWS(w http.ResponseWriter, r *http.Request) {
 	reg := protocol.Register{LocalPort: port, ConnectionType: "websocket"}
 	registered, tunnel, err := s.manager.Register(netConn, reg)
 	if err != nil {
+		slog.WarnContext(r.Context(), "tunnel registration failed", logAttrs(r, "error", err.Error())...)
+		_ = conn.Close(websocket.StatusInternalError, "registration failed")
 		return
 	}
 	rules, _ := s.db.ListRules(tunnel.session.ID)
