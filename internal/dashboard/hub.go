@@ -19,7 +19,7 @@ type Client struct {
 
 type Hub struct {
 	clients    map[*Client]bool
-	broadcast  chan []byte
+	broadcast  chan Event
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
@@ -28,7 +28,7 @@ type Hub struct {
 func NewHub() *Hub {
 	return &Hub{
 		clients:    map[*Client]bool{},
-		broadcast:  make(chan []byte, 512),
+		broadcast:  make(chan Event, 512),
 		register:   make(chan *Client, 64),
 		unregister: make(chan *Client, 64),
 	}
@@ -48,11 +48,18 @@ func (h *Hub) Run(ctx context.Context) {
 			delete(h.clients, client)
 			close(client.Send)
 			h.mu.Unlock()
-		case message := <-h.broadcast:
+		case evt := <-h.broadcast:
+			data, err := json.Marshal(evt)
+			if err != nil {
+				continue
+			}
 			h.mu.RLock()
 			for client := range h.clients {
+				if evt.SessionID != "" && client.SessionID != evt.SessionID {
+					continue
+				}
 				select {
-				case client.Send <- message:
+				case client.Send <- data:
 				default:
 				}
 			}
@@ -70,6 +77,5 @@ func (h *Hub) Unregister(c *Client) {
 }
 
 func (h *Hub) Broadcast(evt Event) {
-	data, _ := json.Marshal(evt)
-	h.broadcast <- data
+	h.broadcast <- evt
 }
