@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -70,14 +70,17 @@ func (s *Server) Start(ctx context.Context) error {
 		s.shutdown(context.Background())
 	}()
 
-	log.Printf("HTTP listening on %s", s.cfg.HTTPAddr)
-	log.Printf("Binary tunnel listening on %s", s.cfg.TCPAddr)
-	log.Printf("SSH tunnel listening on %s", s.cfg.SSHAddr)
+	slog.Info("server listeners ready",
+		"http_addr", s.cfg.HTTPAddr,
+		"tcp_addr", s.cfg.TCPAddr,
+		"ssh_addr", s.cfg.SSHAddr,
+		"tls_enabled", s.cfg.EnableTLS,
+	)
 	if s.cfg.EnableTLS {
 		if err := os.MkdirAll(s.cfg.ACMECache, 0o755); err != nil {
 			return err
 		}
-		log.Printf("HTTPS listening on %s", s.cfg.HTTPSAddr)
+		slog.Info("https listener ready", "https_addr", s.cfg.HTTPSAddr)
 		return s.serveTLS(ctx)
 	}
 	if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
