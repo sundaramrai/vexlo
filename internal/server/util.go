@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -42,4 +45,27 @@ func captureBody(raw []byte, limit int) string {
 		return string(raw)
 	}
 	return string(raw[:limit]) + "\n...[truncated]"
+}
+
+func captureResponseBody(headers http.Header, raw []byte, limit int) string {
+	decoded := decodeResponseBody(headers, raw)
+	return captureBody(decoded, limit)
+}
+
+func decodeResponseBody(headers http.Header, raw []byte) []byte {
+	encoding := strings.ToLower(strings.TrimSpace(headers.Get("Content-Encoding")))
+	if !strings.Contains(encoding, "gzip") {
+		return raw
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return raw
+	}
+	defer func() { _ = reader.Close() }()
+
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return raw
+	}
+	return decoded
 }
