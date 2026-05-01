@@ -1,0 +1,35 @@
+[Unit]
+Description=Vexlo tunnel server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vexlo
+Group=vexlo
+WorkingDirectory=/opt/vexlo
+EnvironmentFile=/etc/vexlo/vexlo.env
+ExecStart=/opt/vexlo/vexlo-server \
+  --tls \
+  --http-addr :80 \
+  --https-addr :443 \
+  --tcp-addr :9000 \
+  --ssh-addr :2222 \
+  --base-domain ${VEXLO_BASE_DOMAIN} \
+  --host-url ${VEXLO_HOST_URL} \
+  --acme-email ${VEXLO_ACME_EMAIL} \
+  --acme-cache /var/lib/vexlo/acme-cache \
+  --db /var/lib/vexlo/vexlo.db
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vexlo /etc/vexlo /opt/vexlo
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
