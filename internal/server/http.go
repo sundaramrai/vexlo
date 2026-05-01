@@ -27,6 +27,8 @@ const (
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.withRequestLogging("root", s.handleRoot))
+	mux.HandleFunc("/assets/dashboard.css", s.withRequestLogging("dashboard_css", dashboard.ServeCSS))
+	mux.HandleFunc("/assets/dashboard.js", s.withRequestLogging("dashboard_js", dashboard.ServeJS))
 	mux.HandleFunc("/connect", s.withRequestLogging("connect_page", s.handleConnectPage))
 	mux.HandleFunc("/api/sessions", s.withRequestLogging("list_sessions", s.handleSessions))
 	mux.HandleFunc("/api/requests", s.withRequestLogging("list_requests", s.handleRequests))
