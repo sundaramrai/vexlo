@@ -8,7 +8,7 @@ Vexlo is a lightweight self-hosted localhost tunnel written in Go. It exposes a 
 - SSH-backed tunnel transport, including native `ssh -R` remote forwarding
 - Browser/WebSocket tunnel transport endpoint
 - SQLite persistence for sessions, requests, replays, and routing rules
-- Embedded single-file dashboard with live updates over WebSocket
+- Embedded dashboard assets with live updates over WebSocket
 - Replay with request mutation
 - JSON/text response diffing
 - GitHub Actions release workflow
@@ -22,7 +22,7 @@ internal/server     HTTP/API/tunnel server implementation
 internal/client     Tunnel client implementation
 internal/model      Shared data models
 internal/storage    SQLite layer
-internal/dashboard  Embedded dashboard HTML + websocket hub
+internal/dashboard  Embedded dashboard HTML/CSS/JS + websocket hub
 internal/replay     Replay and diff logic
 internal/protocol   Framed transport protocol
 ```
@@ -48,6 +48,12 @@ This starts:
 
 By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
 
+With defaults, this can usually be shortened to:
+
+```bash
+go run ./cmd/server
+```
+
 ### 3. Run your local app
 
 For example, start your app on port `3000`.
@@ -58,6 +64,12 @@ Binary mode:
 
 ```bash
 go run ./cmd/client --server 127.0.0.1:9000 3000
+```
+
+With defaults, this can usually be shortened to:
+
+```bash
+go run ./cmd/client 3000
 ```
 
 SSH mode:
@@ -94,6 +106,12 @@ Open the printed dashboard URL. From there you can:
 - Mutate headers/body before replay
 - View diff output
 - Add basic routing rules
+
+The dashboard source lives in:
+
+- `internal/dashboard/dashboard.html`
+- `internal/dashboard/dashboard.css`
+- `internal/dashboard/dashboard.js`
 
 ## Build binaries
 
