@@ -119,7 +119,7 @@ func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tun
 		Body:            captureBody(body, s.cfg.CaptureBodyLimit),
 		ResponseStatus:  resp.StatusCode,
 		ResponseHeaders: marshalHeaders(resp.Headers),
-		ResponseBody:    captureBody(resp.Body, s.cfg.CaptureBodyLimit),
+		ResponseBody:    captureResponseBody(resp.Headers, resp.Body, s.cfg.CaptureBodyLimit),
 		DurationMS:      time.Since(start).Milliseconds(),
 		CreatedAt:       time.Now().UTC(),
 		DecodedHeaders:  flattenHeaders(r.Header),
@@ -257,7 +257,8 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	diff, _ := replay.CompareBodies(original.ResponseBody, string(resp.Body))
+	decodedReplayBody := captureResponseBody(resp.Headers, resp.Body, s.cfg.CaptureBodyLimit)
+	diff, _ := replay.CompareBodies(original.ResponseBody, decodedReplayBody)
 	replayRecord := model.CapturedReplay{
 		ID:             randomID(8),
 		RequestID:      original.ID,
@@ -265,7 +266,7 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		MutatedBody:    body,
 		ResponseStatus: resp.StatusCode,
 		ResponseHeader: marshalHeaders(resp.Headers),
-		ResponseBody:   string(resp.Body),
+		ResponseBody:   decodedReplayBody,
 		DiffResult:     replay.MustJSON(diff),
 		DurationMS:     time.Since(start).Milliseconds(),
 		CreatedAt:      time.Now().UTC(),
