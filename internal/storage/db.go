@@ -3,13 +3,19 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"sync"
+	"sync/atomic"
 
 	_ "modernc.org/sqlite"
 )
 
 type DB struct {
-	sql   *sql.DB
-	queue chan func(*sql.Tx) error
+	sql           *sql.DB
+	queue         chan func(*sql.Tx) error
+	closed        chan struct{}
+	writerDone    chan struct{}
+	writerStarted atomic.Bool
+	closeOnce     sync.Once
 }
 
 func Open(path string) (*DB, error) {
@@ -19,8 +25,10 @@ func Open(path string) (*DB, error) {
 	}
 	db.SetMaxOpenConns(1)
 	wrapped := &DB{
-		sql:   db,
-		queue: make(chan func(*sql.Tx) error, 1024),
+		sql:        db,
+		queue:      make(chan func(*sql.Tx) error, 1024),
+		closed:     make(chan struct{}),
+		writerDone: make(chan struct{}),
 	}
 	if err := wrapped.migrate(); err != nil {
 		_ = db.Close()
@@ -93,20 +101,34 @@ func (db *DB) migrate() error {
 }
 
 func (db *DB) RunWriter(ctx context.Context) {
+	db.writerStarted.Store(true)
+	defer close(db.writerDone)
+
+	run := func(fn func(*sql.Tx) error) {
+		tx, err := db.sql.BeginTx(ctx, nil)
+		if err != nil {
+			return
+		}
+		if err := fn(tx); err != nil {
+			_ = tx.Rollback()
+			return
+		}
+		_ = tx.Commit()
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			for {
+				select {
+				case fn := <-db.queue:
+					run(fn)
+				default:
+					return
+				}
+			}
 		case fn := <-db.queue:
-			tx, err := db.sql.BeginTx(ctx, nil)
-			if err != nil {
-				continue
-			}
-			if err := fn(tx); err != nil {
-				_ = tx.Rollback()
-				continue
-			}
-			_ = tx.Commit()
+			run(fn)
 		}
 	}
 }
@@ -114,11 +136,16 @@ func (db *DB) RunWriter(ctx context.Context) {
 func (db *DB) Enqueue(fn func(*sql.Tx) error) {
 	select {
 	case db.queue <- fn:
-	default:
-		go func() { db.queue <- fn }()
+	case <-db.closed:
 	}
 }
 
 func (db *DB) Close() error {
+	db.closeOnce.Do(func() {
+		close(db.closed)
+	})
+	if db.writerStarted.Load() {
+		<-db.writerDone
+	}
 	return db.sql.Close()
 }
