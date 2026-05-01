@@ -104,8 +104,8 @@ func (db *DB) RunWriter(ctx context.Context) {
 	db.writerStarted.Store(true)
 	defer close(db.writerDone)
 
-	run := func(fn func(*sql.Tx) error) {
-		tx, err := db.sql.BeginTx(ctx, nil)
+	run := func(txCtx context.Context, fn func(*sql.Tx) error) {
+		tx, err := db.sql.BeginTx(txCtx, nil)
 		if err != nil {
 			return
 		}
@@ -122,13 +122,13 @@ func (db *DB) RunWriter(ctx context.Context) {
 			for {
 				select {
 				case fn := <-db.queue:
-					run(fn)
+					run(context.Background(), fn)
 				default:
 					return
 				}
 			}
 		case fn := <-db.queue:
-			run(fn)
+			run(ctx, fn)
 		}
 	}
 }
