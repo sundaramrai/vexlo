@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"strings"
 )
 
@@ -26,4 +27,19 @@ func headerJSONToMap(raw string) map[string]string {
 		dst[k] = strings.Join(v, ", ")
 	}
 	return dst
+}
+
+func flattenHeaders(src http.Header) map[string]string {
+	dst := make(map[string]string, len(src))
+	for key, values := range src {
+		dst[key] = strings.Join(values, ", ")
+	}
+	return dst
+}
+
+func captureBody(raw []byte, limit int) string {
+	if limit <= 0 || len(raw) <= limit {
+		return string(raw)
+	}
+	return string(raw[:limit]) + "\n...[truncated]"
 }
