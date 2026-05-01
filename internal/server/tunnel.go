@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -146,6 +147,12 @@ func (m *TunnelManager) installTunnel(tunnel *Tunnel) {
 	m.tunnels[tunnel.Subdomain] = tunnel
 	m.bySession[tunnel.session.ID] = tunnel
 	m.mu.Unlock()
+	slog.Info("tunnel registered",
+		"session_id", tunnel.session.ID,
+		"subdomain", tunnel.Subdomain,
+		"local_port", tunnel.LocalPort,
+		"connection_type", tunnel.ConnectionType,
+	)
 }
 
 func (m *TunnelManager) registered(session Session) *protocol.Registered {
@@ -201,6 +208,11 @@ func (m *TunnelManager) removeTunnel(t *Tunnel) {
 	m.mu.Unlock()
 	ended := time.Now().UTC()
 	_ = m.storage.EndSession(t.session.ID, ended)
+	slog.Info("tunnel closed",
+		"session_id", t.session.ID,
+		"subdomain", t.Subdomain,
+		"connection_type", t.ConnectionType,
+	)
 }
 
 func (m *TunnelManager) closeTunnel(t *Tunnel) {
