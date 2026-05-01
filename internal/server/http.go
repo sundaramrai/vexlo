@@ -194,7 +194,7 @@ func (s *Server) handleRequestByID(w http.ResponseWriter, r *http.Request) {
 type replayPayload struct {
 	RequestID string            `json:"request_id"`
 	Headers   map[string]string `json:"headers"`
-	Body      string            `json:"body"`
+	Body      *string           `json:"body"`
 }
 
 func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
@@ -237,17 +237,18 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 			headers.Set(key, value)
 		}
 	}
-	req, _ := http.NewRequestWithContext(r.Context(), original.Method, "http://replay"+original.Path, strings.NewReader(payload.Body))
+	body := original.Body
+	if payload.Body != nil {
+		body = *payload.Body
+	}
+	req, _ := http.NewRequestWithContext(r.Context(), original.Method, "http://replay"+original.Path, strings.NewReader(body))
 	req.URL.RawQuery = original.Query
 	req.Header = headers
-	if payload.Body == "" {
-		payload.Body = original.Body
-		req.Body = io.NopCloser(strings.NewReader(payload.Body))
-	}
+	req.Body = io.NopCloser(strings.NewReader(body))
 
 	targetPort := tunnel.ResolveTargetPort(req)
 	start := time.Now()
-	resp, err := s.manager.Forward(r.Context(), tunnel, req, []byte(payload.Body), targetPort)
+	resp, err := s.manager.Forward(r.Context(), tunnel, req, []byte(body), targetPort)
 	if err != nil {
 		s.writeError(w, r, http.StatusBadGateway, "replay forward failed", err,
 			"session_id", sessionID,
@@ -261,7 +262,7 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		ID:             randomID(8),
 		RequestID:      original.ID,
 		MutatedHeaders: marshalFlatHeaders(payload.Headers),
-		MutatedBody:    payload.Body,
+		MutatedBody:    body,
 		ResponseStatus: resp.StatusCode,
 		ResponseHeader: marshalHeaders(resp.Headers),
 		ResponseBody:   string(resp.Body),
