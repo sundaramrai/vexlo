@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/coder/websocket"
@@ -32,9 +31,6 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case msg := <-client.Send:
-			if sessionID != "" && !eventMatchesSession(msg, sessionID) {
-				continue
-			}
 			if err := conn.Write(r.Context(), websocket.MessageText, msg); err != nil {
 				return
 			}
@@ -63,12 +59,4 @@ func (s *Server) handleTunnelWS(w http.ResponseWriter, r *http.Request) {
 	tunnel.SetRules(rules)
 	_ = protocol.Encode(netConn, protocol.TypeRegistered, registered)
 	<-tunnel.closed
-}
-
-func eventMatchesSession(message []byte, sessionID string) bool {
-	var evt dashboard.Event
-	if err := json.Unmarshal(message, &evt); err != nil {
-		return false
-	}
-	return evt.SessionID == "" || evt.SessionID == sessionID
 }
