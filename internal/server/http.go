@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,6 +17,7 @@ import (
 )
 
 const methodNotAllowed = "method not allowed"
+const requestNotFound = "request not found"
 
 const (
 	apiRequestsPath = "/api/requests/"
@@ -135,12 +137,17 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
 		return
 	}
-	sessions, err := s.db.ListSessions()
+	sessionID, err := s.authorize(r)
 	if err != nil {
-		s.writeError(w, r, http.StatusInternalServerError, "failed to list sessions", err)
+		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
-	writeJSON(w, sessions)
+	session, err := s.db.GetSession(sessionID)
+	if err != nil {
+		s.writeError(w, r, http.StatusInternalServerError, "failed to load session", err, "session_id", sessionID)
+		return
+	}
+	writeJSON(w, []model.Session{sanitizeSession(*session)})
 }
 
 func (s *Server) handleRequests(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +181,11 @@ func (s *Server) handleRequestByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, apiRequestsPath)
 	item, err := s.db.GetRequest(id)
 	if err != nil {
-		s.writeError(w, r, http.StatusNotFound, "request not found", err, "session_id", sessionID, "request_record_id", id)
+		s.writeError(w, r, http.StatusNotFound, requestNotFound, err, "session_id", sessionID, "request_record_id", id)
+		return
+	}
+	if item.SessionID != sessionID {
+		s.writeError(w, r, http.StatusNotFound, requestNotFound, nil, "session_id", sessionID, "request_record_id", id)
 		return
 	}
 	writeJSON(w, item)
@@ -203,7 +214,11 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	}
 	original, err := s.db.GetRequest(payload.RequestID)
 	if err != nil {
-		s.writeError(w, r, http.StatusNotFound, "request not found", err, "session_id", sessionID, "request_record_id", payload.RequestID)
+		s.writeError(w, r, http.StatusNotFound, requestNotFound, err, "session_id", sessionID, "request_record_id", payload.RequestID)
+		return
+	}
+	if original.SessionID != sessionID {
+		s.writeError(w, r, http.StatusNotFound, requestNotFound, nil, "session_id", sessionID, "request_record_id", payload.RequestID)
 		return
 	}
 	tunnel := s.manager.FindBySession(sessionID)
@@ -308,8 +323,14 @@ func (s *Server) handleRuleByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, apiRulesPath)
-	if err := s.db.DeleteRule(id); err != nil {
-		s.writeError(w, r, http.StatusInternalServerError, "failed to delete rule", err, "session_id", sessionID, "rule_id", id)
+	if err := s.db.DeleteRuleForSession(sessionID, id); err != nil {
+		status := http.StatusInternalServerError
+		clientMsg := "failed to delete rule"
+		if errors.Is(err, sql.ErrNoRows) {
+			status = http.StatusNotFound
+			clientMsg = "rule not found"
+		}
+		s.writeError(w, r, status, clientMsg, err, "session_id", sessionID, "rule_id", id)
 		return
 	}
 	if tunnel := s.manager.FindBySession(sessionID); tunnel != nil {
@@ -322,6 +343,11 @@ func (s *Server) handleRuleByID(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func sanitizeSession(session model.Session) model.Session {
+	session.AuthToken = ""
+	return session
 }
 
 func (s *Server) authorize(r *http.Request) (string, error) {
