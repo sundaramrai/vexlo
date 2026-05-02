@@ -20,7 +20,7 @@ func newTestManager(t *testing.T, cfg Config) (*TunnelManager, *storage.DB) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return NewTunnelManager(cfg, db, dashboard.NewHub(), map[string]struct{}{}), db
+	return NewTunnelManager(cfg, db, dashboard.NewHub()), db
 }
 
 func TestValidateRegistrationRequiresClientTokenForNewTCPRegistrations(t *testing.T) {
