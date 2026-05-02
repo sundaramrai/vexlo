@@ -6,7 +6,6 @@ type Config struct {
 	HTTPAddr            string
 	HTTPSAddr           string
 	TCPAddr             string
-	SSHAddr             string
 	BaseDomain          string
 	DBPath              string
 	HostURL             string
@@ -20,8 +19,6 @@ type Config struct {
 	WriteTimeout        time.Duration
 	IdleTimeout         time.Duration
 	RegistrationToken   string
-	AllowedSSHKeysPath  string
-	SSHHostKeyPath      string
 	RetentionPeriod     time.Duration
 	AdminUsername       string
 	AdminPassword       string
@@ -32,7 +29,6 @@ func DefaultConfig() Config {
 		HTTPAddr:            ":8080",
 		HTTPSAddr:           ":8443",
 		TCPAddr:             ":9000",
-		SSHAddr:             ":2222",
 		BaseDomain:          "localhost",
 		DBPath:              "vexlo.db",
 		HostURL:             "http://localhost:8080",
@@ -43,7 +39,6 @@ func DefaultConfig() Config {
 		ReadTimeout:         15 * time.Second,
 		WriteTimeout:        60 * time.Second,
 		IdleTimeout:         60 * time.Second,
-		SSHHostKeyPath:      "ssh_host_key",
 		RetentionPeriod:     7 * 24 * time.Hour,
 	}
 }
