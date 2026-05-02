@@ -14,15 +14,16 @@ import (
 )
 
 type Server struct {
-	cfg       Config
-	manager   *TunnelManager
-	db        *storage.DB
-	hub       *dashboard.Hub
-	httpSrv   *http.Server
-	httpPlain *http.Server
-	tcpLn     net.Listener
-	sshLn     net.Listener
-	closeOnce sync.Once
+	cfg               Config
+	manager           *TunnelManager
+	db                *storage.DB
+	hub               *dashboard.Hub
+	authorizedSSHKeys map[string]struct{}
+	httpSrv           *http.Server
+	httpPlain         *http.Server
+	tcpLn             net.Listener
+	sshLn             net.Listener
+	closeOnce         sync.Once
 }
 
 func New(cfg Config) (*Server, error) {
@@ -30,25 +31,35 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	authorizedSSHKeys, err := loadAuthorizedKeys(cfg.AllowedSSHKeysPath)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	hub := dashboard.NewHub()
-	manager := NewTunnelManager(cfg, db, hub)
+	manager := NewTunnelManager(cfg, db, hub, authorizedSSHKeys)
 	return &Server{
-		cfg:     cfg,
-		db:      db,
-		hub:     hub,
-		manager: manager,
+		cfg:               cfg,
+		db:                db,
+		hub:               hub,
+		manager:           manager,
+		authorizedSSHKeys: authorizedSSHKeys,
 	}, nil
 }
 
 func (s *Server) Start(ctx context.Context) error {
 	go s.hub.Run(ctx)
 	go s.db.RunWriter(ctx)
+	go s.runRetention(ctx)
 
 	mux := s.routes()
 	s.httpSrv = &http.Server{
 		Addr:              s.cfg.HTTPAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       s.cfg.ReadTimeout,
+		WriteTimeout:      s.cfg.WriteTimeout,
+		IdleTimeout:       s.cfg.IdleTimeout,
 	}
 
 	tcpLn, err := net.Listen("tcp", s.cfg.TCPAddr)
@@ -87,6 +98,31 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) runRetention(ctx context.Context) {
+	if s.cfg.RetentionPeriod <= 0 {
+		return
+	}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	prune := func() {
+		cutoff := time.Now().UTC().Add(-s.cfg.RetentionPeriod)
+		if err := s.db.PruneBefore(cutoff); err != nil {
+			slog.Warn("retention prune failed", "error", err, "cutoff", cutoff)
+		}
+	}
+
+	prune()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			prune()
+		}
+	}
 }
 
 func (s *Server) shutdown(ctx context.Context) {
