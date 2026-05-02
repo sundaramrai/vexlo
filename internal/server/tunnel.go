@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"vexlo/internal/dashboard"
-	"vexlo/internal/protocol"
-	"vexlo/internal/storage"
+	"github.com/sundaramrai/vexlo/internal/dashboard"
+	"github.com/sundaramrai/vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/storage"
 )
 
 type TunnelManager struct {

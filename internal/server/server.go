@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"vexlo/internal/dashboard"
-	"vexlo/internal/storage"
+	"github.com/sundaramrai/vexlo/internal/dashboard"
+	"github.com/sundaramrai/vexlo/internal/storage"
 )
 
 type Server struct {

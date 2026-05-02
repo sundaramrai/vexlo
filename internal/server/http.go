@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"vexlo/internal/dashboard"
-	"vexlo/internal/model"
+	"github.com/sundaramrai/vexlo/internal/dashboard"
+	"github.com/sundaramrai/vexlo/internal/model"
 )
 
 const methodNotAllowed = "method not allowed"

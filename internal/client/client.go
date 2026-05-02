@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/protocol"
 )
 
 type Config struct {

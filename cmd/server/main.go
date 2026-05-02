@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"vexlo/internal/server"
+	"github.com/sundaramrai/vexlo/internal/server"
 )
 
 func main() {

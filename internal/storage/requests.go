@@ -3,7 +3,7 @@ package storage
 import (
 	"database/sql"
 
-	"vexlo/internal/model"
+	"github.com/sundaramrai/vexlo/internal/model"
 )
 
 func (db *DB) InsertRequest(req model.CapturedRequest) {

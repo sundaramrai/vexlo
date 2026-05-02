@@ -6,7 +6,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"vexlo/internal/dashboard"
+	"github.com/sundaramrai/vexlo/internal/dashboard"
 )
 
 func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {

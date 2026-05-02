@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"vexlo/internal/client"
+	"github.com/sundaramrai/vexlo/internal/client"
 )
 
 func main() {

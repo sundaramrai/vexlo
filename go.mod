@@ -1,4 +1,4 @@
-module vexlo
+module github.com/sundaramrai/vexlo
 
 go 1.23.0
 

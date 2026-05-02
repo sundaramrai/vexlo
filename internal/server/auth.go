@@ -3,7 +3,7 @@ package server
 import (
 	"errors"
 
-	"vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/protocol"
 )
 
 func (m *TunnelManager) validateRegistration(reg protocol.Register) error {

@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"vexlo/internal/model"
+	"github.com/sundaramrai/vexlo/internal/model"
 )
 
 func randomID(size int) string {

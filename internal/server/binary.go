@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net"
 
-	"vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/protocol"
 )
 
 func (s *Server) acceptBinary(ctxDone interface{ Done() <-chan struct{} }) {

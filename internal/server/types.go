@@ -1,6 +1,6 @@
 package server
 
-import "vexlo/internal/model"
+import "github.com/sundaramrai/vexlo/internal/model"
 
 type Session = model.Session
 type CapturedRequest = model.CapturedRequest

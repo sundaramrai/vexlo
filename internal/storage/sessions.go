@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"vexlo/internal/model"
+	"github.com/sundaramrai/vexlo/internal/model"
 )
 
 func (db *DB) UpsertSession(session model.Session) error {

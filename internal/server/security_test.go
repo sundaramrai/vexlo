@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"vexlo/internal/dashboard"
-	"vexlo/internal/model"
-	"vexlo/internal/protocol"
-	"vexlo/internal/storage"
+	"github.com/sundaramrai/vexlo/internal/dashboard"
+	"github.com/sundaramrai/vexlo/internal/model"
+	"github.com/sundaramrai/vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/storage"
 )
 
 func newTestManager(t *testing.T, cfg Config) (*TunnelManager, *storage.DB) {
