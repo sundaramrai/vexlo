@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
+
+	"vexlo/internal/model"
 )
 
 func randomID(size int) string {
@@ -68,4 +71,54 @@ func decodeResponseBody(headers http.Header, raw []byte) []byte {
 		return raw
 	}
 	return decoded
+}
+
+var sensitiveHeaderNames = []string{
+	"authorization",
+	"proxy-authorization",
+	"cookie",
+	"set-cookie",
+	"x-api-key",
+	"x-auth-token",
+}
+
+func sanitizeCapturedRequest(req model.CapturedRequest) model.CapturedRequest {
+	req.Headers = sanitizeHeaderJSON(req.Headers)
+	req.ResponseHeaders = sanitizeHeaderJSON(req.ResponseHeaders)
+	req.DecodedHeaders = headerJSONToMap(req.Headers)
+	if req.Replay != nil {
+		replayCopy := sanitizeCapturedReplay(*req.Replay)
+		req.Replay = &replayCopy
+	}
+	return req
+}
+
+func sanitizeCapturedReplay(replay model.CapturedReplay) model.CapturedReplay {
+	replay.MutatedHeaders = sanitizeHeaderJSON(replay.MutatedHeaders)
+	replay.ResponseHeader = sanitizeHeaderJSON(replay.ResponseHeader)
+	return replay
+}
+
+func sanitizeHeaderJSON(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	headers := map[string][]string{}
+	if err := json.Unmarshal([]byte(raw), &headers); err != nil {
+		return raw
+	}
+	for key := range headers {
+		if isSensitiveHeader(key) {
+			headers[key] = []string{"[redacted]"}
+		}
+	}
+	buf, err := json.Marshal(headers)
+	if err != nil {
+		return raw
+	}
+	return string(buf)
+}
+
+func isSensitiveHeader(name string) bool {
+	return slices.Contains(sensitiveHeaderNames, strings.ToLower(strings.TrimSpace(name)))
 }
