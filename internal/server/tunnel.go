@@ -18,16 +18,13 @@ import (
 	"vexlo/internal/storage"
 )
 
-type forwarderFunc func(context.Context, *http.Request, []byte, int) (*protocol.ForwardResponse, error)
-
 type TunnelManager struct {
-	tunnels           map[string]*Tunnel
-	bySession         map[string]*Tunnel
-	mu                sync.RWMutex
-	storage           *storage.DB
-	dashboard         *dashboard.Hub
-	cfg               Config
-	authorizedSSHKeys map[string]struct{}
+	tunnels   map[string]*Tunnel
+	bySession map[string]*Tunnel
+	mu        sync.RWMutex
+	storage   *storage.DB
+	dashboard *dashboard.Hub
+	cfg       Config
 }
 
 type Tunnel struct {
@@ -38,25 +35,22 @@ type Tunnel struct {
 	session        Session
 	conn           net.Conn
 	reader         *bufio.Reader
-	forwarder      forwarderFunc
 	writeMu        sync.Mutex
 	mu             sync.RWMutex
 	pending        map[string]chan *protocol.ForwardResponse
-	rules          []RoutingRule
 	createdAt      time.Time
 	authToken      string
 	closed         chan struct{}
 	closeOnce      sync.Once
 }
 
-func NewTunnelManager(cfg Config, db *storage.DB, hub *dashboard.Hub, authorizedSSHKeys map[string]struct{}) *TunnelManager {
+func NewTunnelManager(cfg Config, db *storage.DB, hub *dashboard.Hub) *TunnelManager {
 	return &TunnelManager{
-		tunnels:           map[string]*Tunnel{},
-		bySession:         map[string]*Tunnel{},
-		storage:           db,
-		dashboard:         hub,
-		cfg:               cfg,
-		authorizedSSHKeys: authorizedSSHKeys,
+		tunnels:   map[string]*Tunnel{},
+		bySession: map[string]*Tunnel{},
+		storage:   db,
+		dashboard: hub,
+		cfg:       cfg,
 	}
 }
 
@@ -73,22 +67,6 @@ func newTunnel(conn net.Conn, session Session) *Tunnel {
 		createdAt:      session.StartedAt,
 		authToken:      session.AuthToken,
 		closed:         make(chan struct{}),
-	}
-}
-
-func newForwarderTunnel(session Session, forwarder forwarderFunc, closeConn func() error) *Tunnel {
-	return &Tunnel{
-		ID:             session.ID,
-		Subdomain:      session.Subdomain,
-		LocalPort:      session.LocalPort,
-		ConnectionType: session.ConnectionType,
-		session:        session,
-		forwarder:      forwarder,
-		pending:        map[string]chan *protocol.ForwardResponse{},
-		createdAt:      session.StartedAt,
-		authToken:      session.AuthToken,
-		closed:         make(chan struct{}),
-		conn:           &closerConn{closeFn: closeConn},
 	}
 }
 
@@ -109,28 +87,12 @@ func (m *TunnelManager) Register(conn net.Conn, reg protocol.Register) (*protoco
 	return m.registered(session), tunnel, nil
 }
 
-func (m *TunnelManager) RegisterForwarder(reg protocol.Register, forwarder forwarderFunc, closeConn func() error) (*protocol.Registered, *Tunnel, error) {
-	if err := m.validateRegistration(reg); err != nil {
-		return nil, nil, err
-	}
-	session, err := m.resolveSession(reg)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := m.storage.UpsertSession(session); err != nil {
-		return nil, nil, err
-	}
-	tunnel := newForwarderTunnel(session, forwarder, closeConn)
-	m.installTunnel(tunnel)
-	return m.registered(session), tunnel, nil
-}
-
 func (m *TunnelManager) resolveSession(reg protocol.Register) (Session, error) {
 	session := Session{
 		ID:             randomID(8),
 		Subdomain:      randomID(3),
 		LocalPort:      reg.LocalPort,
-		ConnectionType: reg.ConnectionType,
+		ConnectionType: "tcp",
 		StartedAt:      time.Now().UTC(),
 		AuthToken:      randomID(16),
 		TunnelToken:    randomID(16),
@@ -139,7 +101,7 @@ func (m *TunnelManager) resolveSession(reg protocol.Register) (Session, error) {
 		if existing, err := m.storage.GetSession(reg.SessionID); err == nil {
 			session = *existing
 			session.LocalPort = reg.LocalPort
-			session.ConnectionType = reg.ConnectionType
+			session.ConnectionType = "tcp"
 			session.StartedAt = time.Now().UTC()
 		} else {
 			session.ID = reg.SessionID
@@ -160,7 +122,6 @@ func (m *TunnelManager) installTunnel(tunnel *Tunnel) {
 		"session_id", tunnel.session.ID,
 		"subdomain", tunnel.Subdomain,
 		"local_port", tunnel.LocalPort,
-		"connection_type", tunnel.ConnectionType,
 	)
 }
 
@@ -173,6 +134,7 @@ func (m *TunnelManager) registered(session Session) *protocol.Registered {
 		ConnectionType: session.ConnectionType,
 		StartedAt:      session.StartedAt,
 		AuthToken:      session.AuthToken,
+		TunnelToken:    session.TunnelToken,
 	}
 }
 
@@ -220,7 +182,6 @@ func (m *TunnelManager) removeTunnel(t *Tunnel) {
 	slog.Info("tunnel closed",
 		"session_id", t.session.ID,
 		"subdomain", t.Subdomain,
-		"connection_type", t.ConnectionType,
 	)
 }
 
@@ -262,18 +223,12 @@ func (m *TunnelManager) ActiveTunnelCount() int {
 }
 
 func (t *Tunnel) send(kind string, v any) error {
-	if t.conn == nil {
-		return errors.New("no transport connection")
-	}
 	t.writeMu.Lock()
 	defer t.writeMu.Unlock()
 	return protocol.Encode(t.conn, kind, v)
 }
 
 func (m *TunnelManager) Forward(ctx context.Context, tunnel *Tunnel, r *http.Request, body []byte, targetPort int) (*protocol.ForwardResponse, error) {
-	if tunnel.forwarder != nil {
-		return tunnel.forwarder(ctx, r, body, targetPort)
-	}
 	reqID := randomID(8)
 	fwd := protocol.ForwardRequest{
 		ID:         reqID,
@@ -302,30 +257,11 @@ func (m *TunnelManager) Forward(ctx context.Context, tunnel *Tunnel, r *http.Req
 	}
 }
 
+func (t *Tunnel) ResolveTargetPort(*http.Request) int {
+	return t.LocalPort
+}
+
 func marshalHeaders(h http.Header) string {
 	buf, _ := json.Marshal(h)
 	return string(buf)
 }
-
-type closerConn struct {
-	closeFn func() error
-}
-
-func (c *closerConn) Read([]byte) (int, error)  { return 0, io.EOF }
-func (c *closerConn) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
-func (c *closerConn) Close() error {
-	if c.closeFn != nil {
-		return c.closeFn()
-	}
-	return nil
-}
-func (c *closerConn) LocalAddr() net.Addr              { return dummyAddr("forwarder-local") }
-func (c *closerConn) RemoteAddr() net.Addr             { return dummyAddr("forwarder-remote") }
-func (c *closerConn) SetDeadline(time.Time) error      { return nil }
-func (c *closerConn) SetReadDeadline(time.Time) error  { return nil }
-func (c *closerConn) SetWriteDeadline(time.Time) error { return nil }
-
-type dummyAddr string
-
-func (d dummyAddr) Network() string { return string(d) }
-func (d dummyAddr) String() string  { return string(d) }
