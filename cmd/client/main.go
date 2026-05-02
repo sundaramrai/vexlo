@@ -20,6 +20,7 @@ func main() {
 	flag.StringVar(&cfg.HostURL, "host-url", "http://localhost:8080", "dashboard base URL")
 	flag.StringVar(&cfg.SSHAddr, "ssh-addr", "127.0.0.1:2222", "SSH server address")
 	flag.StringVar(&cfg.WSURL, "ws-url", "ws://127.0.0.1:8080/ws/tunnel", "WebSocket tunnel URL")
+	flag.StringVar(&cfg.RegisterToken, "register-token", "", "shared registration token required by the server for tcp/ws tunnel registration")
 	flag.Parse()
 
 	if flag.NArg() > 0 {
