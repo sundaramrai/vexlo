@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"vexlo/internal/server"
 )
@@ -24,6 +25,17 @@ func main() {
 	flag.StringVar(&cfg.ACMEEmail, "acme-email", "", "email used for Let's Encrypt registration")
 	flag.StringVar(&cfg.ACMECache, "acme-cache", "acme-cache", "directory used to cache Let's Encrypt certificates")
 	flag.IntVar(&cfg.CaptureBodyLimit, "capture-body-limit", 256*1024, "max request/response body bytes to retain for dashboard storage; 0 disables the limit")
+	flag.Int64Var(&cfg.MaxRequestBodyBytes, "max-request-body-bytes", 2*1024*1024, "max inbound tunneled request body size in bytes")
+	flag.Int64Var(&cfg.MaxAPIBodyBytes, "max-api-body-bytes", 512*1024, "max API request body size in bytes")
+	flag.DurationVar(&cfg.ReadTimeout, "read-timeout", 15*time.Second, "HTTP server read timeout")
+	flag.DurationVar(&cfg.WriteTimeout, "write-timeout", 60*time.Second, "HTTP server write timeout")
+	flag.DurationVar(&cfg.IdleTimeout, "idle-timeout", 60*time.Second, "HTTP server idle timeout")
+	flag.StringVar(&cfg.RegistrationToken, "registration-token", "", "shared token required for tcp/ws tunnel registration")
+	flag.StringVar(&cfg.AllowedSSHKeysPath, "allowed-ssh-keys", "", "path to an authorized_keys style file for SSH tunnel authentication")
+	flag.StringVar(&cfg.SSHHostKeyPath, "ssh-host-key", "ssh_host_key", "path to the persistent SSH host private key")
+	flag.DurationVar(&cfg.RetentionPeriod, "retention-period", 7*24*time.Hour, "how long ended sessions and captured traffic are retained; 0 disables pruning")
+	flag.StringVar(&cfg.AdminUsername, "admin-user", "", "optional HTTP basic auth username for dashboard and management APIs")
+	flag.StringVar(&cfg.AdminPassword, "admin-pass", "", "optional HTTP basic auth password for dashboard and management APIs")
 	flag.Parse()
 
 	srv, err := server.New(cfg)
