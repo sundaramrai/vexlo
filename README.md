@@ -31,7 +31,7 @@ internal/dashboard  Embedded dashboard HTML/CSS/JS + websocket hub
 internal/protocol   Framed transport protocol
 ```
 
-## Local development
+## Quick start
 
 ### 1. Prerequisites
 
@@ -95,12 +95,6 @@ Open the printed dashboard URL. From there you can:
 - Inspect requests in real time
 - Replay requests
 - Mutate headers/body before replay
-
-The dashboard source lives in:
-
-- `internal/dashboard/dashboard.html`
-- `internal/dashboard/dashboard.css`
-- `internal/dashboard/dashboard.js`
 
 ## Build binaries
 
