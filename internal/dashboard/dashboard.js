@@ -5,7 +5,6 @@ const state = {
   filterMethod: "ALL",
   searchQuery: "",
   tab: "request",
-  rules: [],
   session: params.get("session"),
   token: params.get("token"),
   sessionInfo: null,
@@ -35,9 +34,6 @@ const elements = {
   copyCurl: document.getElementById("copy-curl"),
   replay: document.getElementById("replay"),
   search: document.getElementById("search"),
-  ruleForm: document.getElementById("rule-form"),
-  ruleList: document.getElementById("rule-list"),
-  rulesStatus: document.getElementById("rules-status"),
 };
 
 const methodButtons = [...document.querySelectorAll("[data-method]")];
@@ -244,73 +240,106 @@ const renderEmptyPanels = (leftMessage, rightMessage) => {
   );
 };
 
-const renderReplayDiffSection = (request) => {
-  let diff;
-  try {
-    diff = JSON.parse(request.replay.diff_result || "{}");
-  } catch {
-    diff = null;
-  }
-
-  const diffWrap = make("div", { className: "split" });
-  diffWrap.append(
-    make("div", {
-      className: "detail-header",
-      text: `Replay ${request.replay.response_status} | ${formatDuration(request.replay.duration_ms)}`,
+const renderRequestTab = (request) => {
+  elements.leftPanel.appendChild(
+    renderPanelSection("Request headers", {
+      kind: "headers",
+      value: prettyPayload(request.headers),
     }),
   );
-  const block = make("div", { className: "code-block" });
+  elements.rightPanel.appendChild(
+    renderPanelSection("Request body", {
+      kind: isProbablyJSON(request.body) ? "json" : "raw",
+      value: prettyPayload(request.body),
+    }),
+  );
+};
 
-  if (!diff) {
-    block.appendChild(make("pre", { text: "Unable to parse diff output." }));
-  } else if (diff.mode === "text") {
-    const pre = make("pre");
-    (diff.text || []).forEach((item) => {
-      const line = make("span", {
-        className: `diff-line diff-${item.type}`,
-        text: `${item.type}: ${item.value}`,
-      });
-      pre.appendChild(line);
-    });
-    block.appendChild(pre);
+const renderResponseTab = (request) => {
+  elements.leftPanel.appendChild(
+    renderPanelSection(`Response ${request.response_status}`, {
+      kind: "headers",
+      value: prettyPayload(request.response_headers),
+    }),
+  );
+  elements.rightPanel.appendChild(
+    renderPanelSection(
+      request.replay ? "Latest replay response" : "Response body",
+      {
+        kind: (() => {
+          const responseBody = request.replay
+            ? request.replay.response_body
+            : request.response_body;
+
+          if (request.replay && isProbablyJSON(request.replay.response_body)) {
+            return "json";
+          }
+
+          return isProbablyJSON(responseBody) ? "json" : "raw";
+        })(),
+        value: request.replay
+          ? prettyPayload(request.replay.response_body)
+          : prettyPayload(request.response_body),
+      },
+    ),
+  );
+  if (request.replay) {
+    elements.rightPanel.appendChild(
+      renderPanelSection("Replay response headers", {
+        kind: "headers",
+        value: prettyPayload(request.replay.response_headers),
+      }),
+    );
   } else {
-    const pre = make("pre");
-    let hadDiff = false;
-    Object.entries(diff.removed || {}).forEach(([key, value]) => {
-      hadDiff = true;
-      pre.appendChild(
-        make("span", {
-          className: "diff-line diff-removed",
-          text: `- "${key}": ${JSON.stringify(value)}`,
-        }),
-      );
-    });
-    Object.entries(diff.added || {}).forEach(([key, value]) => {
-      hadDiff = true;
-      pre.appendChild(
-        make("span", {
-          className: "diff-line diff-added",
-          text: `+ "${key}": ${JSON.stringify(value)}`,
-        }),
-      );
-    });
-    Object.entries(diff.changed || {}).forEach(([key, value]) => {
-      hadDiff = true;
-      pre.appendChild(
-        make("span", {
-          className: "diff-line diff-changed",
-          text: `~ "${key}": ${JSON.stringify(value.from)} -> ${JSON.stringify(value.to)}`,
-        }),
-      );
-    });
-    if (!hadDiff) {
-      pre.textContent = "No differences detected.";
-    }
-    block.appendChild(pre);
+    elements.rightPanel.appendChild(
+      renderPanelSection("Original response body", {
+        kind: isProbablyJSON(request.response_body) ? "json" : "raw",
+        value: prettyPayload(request.response_body),
+      }),
+    );
   }
+};
 
-  diffWrap.append(block);
-  return diffWrap;
+const renderMutateTab = (request) => {
+  const leftWrap = make("div", { className: "split" });
+  const rightWrap = make("div", { className: "split" });
+
+  const headersField = make("div", { className: "field" });
+  headersField.append(
+    make("label", { attrs: { for: "mutate-headers" }, text: "Headers JSON" }),
+  );
+  const headersArea = make("textarea", {
+    attrs: { id: "mutate-headers", spellcheck: "false" },
+  });
+  headersArea.value = prettyPayload(request.headers);
+  headersField.append(headersArea);
+  headersField.append(
+    make("div", {
+      className: "help",
+      text: "Use a flat JSON object or the original captured headers.",
+    }),
+  );
+
+  const bodyField = make("div", { className: "field" });
+  bodyField.append(
+    make("label", { attrs: { for: "mutate-body" }, text: "Body" }),
+  );
+  const bodyArea = make("textarea", {
+    attrs: { id: "mutate-body", spellcheck: "false" },
+  });
+  bodyArea.value = request.body || "";
+  bodyField.append(bodyArea);
+  bodyField.append(
+    make("div", {
+      className: "help",
+      text: "Replay uses these edited values without modifying the original capture.",
+    }),
+  );
+
+  leftWrap.append(headersField);
+  rightWrap.append(bodyField);
+  elements.leftPanel.append(leftWrap);
+  elements.rightPanel.append(rightWrap);
 };
 
 const renderRequestDetail = () => {
@@ -338,145 +367,27 @@ const renderRequestDetail = () => {
   ].join(" | ");
 
   if (state.tab === "request") {
-    elements.leftPanel.appendChild(
-      renderPanelSection("Request headers", {
-        kind: "headers",
-        value: prettyPayload(request.headers),
-      }),
-    );
-    elements.rightPanel.appendChild(
-      renderPanelSection("Request body", {
-        kind: isProbablyJSON(request.body) ? "json" : "raw",
-        value: prettyPayload(request.body),
-      }),
-    );
+    renderRequestTab(request);
     return;
   }
 
   if (state.tab === "response") {
-    elements.leftPanel.appendChild(
-      renderPanelSection(`Response ${request.response_status}`, {
-        kind: "headers",
-        value: prettyPayload(request.response_headers),
-      }),
-    );
-    elements.rightPanel.appendChild(
-      renderPanelSection("Response body", {
-        kind: isProbablyJSON(request.response_body) ? "json" : "raw",
-        value: prettyPayload(request.response_body),
-      }),
-    );
+    renderResponseTab(request);
     return;
   }
 
   if (state.tab === "mutate") {
-    const leftWrap = make("div", { className: "split" });
-    const rightWrap = make("div", { className: "split" });
-
-    const headersField = make("div", { className: "field" });
-    headersField.append(
-      make("label", { attrs: { for: "mutate-headers" }, text: "Headers JSON" }),
-    );
-    const headersArea = make("textarea", {
-      attrs: { id: "mutate-headers", spellcheck: "false" },
-    });
-    headersArea.value = prettyPayload(request.headers);
-    headersField.append(headersArea);
-    headersField.append(
-      make("div", {
-        className: "help",
-        text: "Use a flat JSON object or the original captured headers.",
-      }),
-    );
-
-    const bodyField = make("div", { className: "field" });
-    bodyField.append(
-      make("label", { attrs: { for: "mutate-body" }, text: "Body" }),
-    );
-    const bodyArea = make("textarea", {
-      attrs: { id: "mutate-body", spellcheck: "false" },
-    });
-    bodyArea.value = request.body || "";
-    bodyField.append(bodyArea);
-    bodyField.append(
-      make("div", {
-        className: "help",
-        text: "Replay uses these edited values without modifying the original capture.",
-      }),
-    );
-
-    leftWrap.append(headersField);
-    rightWrap.append(bodyField);
-    elements.leftPanel.append(leftWrap);
-    elements.rightPanel.append(rightWrap);
+    renderMutateTab(request);
     return;
   }
 
-  const original = renderPanelSection("Original response body", {
-    kind: isProbablyJSON(request.response_body) ? "json" : "raw",
-    value: prettyPayload(request.response_body),
-  });
-  elements.leftPanel.appendChild(original);
-
-  if (!request.replay) {
-    elements.rightPanel.appendChild(
-      make("div", {
-        className: "empty-state",
-        text: "No replay diff yet. Run replay to compare response changes.",
-      }),
-    );
-    return;
-  }
-
-  elements.rightPanel.appendChild(renderReplayDiffSection(request));
-};
-
-const renderRules = () => {
-  clearNode(elements.ruleList);
-  if (!state.rules.length) {
-    elements.rulesStatus.textContent = "No routing rules configured.";
-    elements.ruleList.appendChild(
-      make("div", {
-        className: "empty-state",
-        text: "Add a rule to route matching requests to a different local port.",
-      }),
-    );
-    return;
-  }
-
-  elements.rulesStatus.textContent = `${state.rules.length} rule${state.rules.length === 1 ? "" : "s"} active`;
-
-  state.rules.forEach((rule) => {
-    const card = make("div", { className: "rule-item" });
-    const header = make("div", { className: "rule-header" });
-    header.append(
-      make("strong", {
-        text: `${rule.match_method || "ANY"} ${rule.match_path || "all paths"} -> ${rule.target_port}`,
-      }),
-    );
-
-    const removeButton = make("button", {
-      text: "delete",
-      attrs: { type: "button" },
-    });
-    removeButton.addEventListener("click", () => deleteRule(rule.id));
-    header.appendChild(removeButton);
-
-    const meta = make("div", {
-      className: "help",
-      text: `priority ${rule.priority || "auto"}${rule.match_header_key ? " | header " + rule.match_header_key : ""}`,
-    });
-
-    card.append(header, meta);
-    elements.ruleList.appendChild(card);
-  });
+  renderEmptyPanels("Select a detail tab.", "Select a detail tab.");
 };
 
 const render = () => {
   renderBanner();
   renderRequestList();
   renderRequestDetail();
-  renderRules();
 };
 
 const updateTimer = () => {
@@ -513,11 +424,6 @@ const ensureSelectedRequest = (requests) => {
   return requests.find((item) => item.id === state.selectedRequest.id) || requests[0];
 };
 
-const refreshRules = async () => {
-  state.rules = asArray(await requestJSON("/api/rules"));
-  renderRules();
-};
-
 const loadInitial = async () => {
   state.loading = true;
   render();
@@ -533,13 +439,7 @@ const loadInitial = async () => {
     state.sessionInfo = current;
     elements.tunnelURL.textContent = `${location.origin}/t/${current.subdomain}`;
 
-    const [requests, rules] = await Promise.all([
-      requestJSON("/api/requests"),
-      requestJSON("/api/rules"),
-    ]);
-
-    state.requests = asArray(requests);
-    state.rules = asArray(rules);
+    state.requests = asArray(await requestJSON("/api/requests"));
     state.selectedRequest = ensureSelectedRequest(state.requests);
     state.loading = false;
     showError("");
@@ -662,7 +562,7 @@ const runReplay = async () => {
       }),
     });
     elements.replayStatus.textContent = `last replay ${replay.response_status} in ${formatDuration(replay.duration_ms)}`;
-    state.tab = "diff";
+    state.tab = "response";
     syncTabs();
     await openRequest(state.selectedRequest.id);
     showError("");
@@ -703,60 +603,6 @@ const copyCurl = async () => {
   }
 };
 
-const addRule = async (event) => {
-  event.preventDefault();
-  const form = new FormData(elements.ruleForm);
-  const targetPort = Number(form.get("target_port"));
-  if (!Number.isFinite(targetPort) || targetPort <= 0) {
-    showError("Target port must be a positive number.");
-    return;
-  }
-
-  const priorityEntry = form.get("priority");
-  const priorityValue =
-    typeof priorityEntry === "string" ? priorityEntry.trim() : "";
-  const matchPathEntry = form.get("match_path");
-  const matchMethodEntry = form.get("match_method");
-  const payload = {
-    match_path: typeof matchPathEntry === "string" ? matchPathEntry.trim() : "",
-    match_method:
-      typeof matchMethodEntry === "string" ? matchMethodEntry.trim() : "",
-    target_port: targetPort,
-  };
-  if (priorityValue) {
-    payload.priority = Number(priorityValue);
-  }
-
-  try {
-    await requestJSON("/api/rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    elements.ruleForm.reset();
-    await refreshRules();
-    showError("");
-  } catch (error) {
-    showError(error.message || "Failed to add rule.");
-  }
-};
-
-const deleteRule = async (id) => {
-  try {
-    await fetch(apiBase(`/api/rules/${id}`), { method: "DELETE" }).then(
-      async (response) => {
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-      },
-    );
-    await refreshRules();
-    showError("");
-  } catch (error) {
-    showError(error.message || "Failed to delete rule.");
-  }
-};
-
 const syncTabs = () => {
   tabButtons.forEach((button) => {
     const active = button.dataset.tab === state.tab;
@@ -790,7 +636,6 @@ elements.search.addEventListener("input", (event) => {
 
 elements.copyCurl.addEventListener("click", copyCurl);
 elements.replay.addEventListener("click", runReplay);
-elements.ruleForm.addEventListener("submit", addRule);
 
 globalThis.addEventListener("beforeunload", () => {
   if (state.reconnectTimer) {
