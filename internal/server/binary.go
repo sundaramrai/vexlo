@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"log/slog"
 	"net"
-	"net/http"
 
 	"vexlo/internal/protocol"
 )
@@ -43,14 +42,8 @@ func (s *Server) handleBinaryConn(conn net.Conn) {
 		_ = conn.Close()
 		return
 	}
-	rules, _ := s.db.ListRules(tunnel.session.ID)
-	tunnel.SetRules(rules)
 	_ = protocol.Encode(conn, protocol.TypeRegistered, registered)
 	<-tunnel.closed
-}
-
-func (s *Server) handleBinaryRegister(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, r, http.StatusNotImplemented, "use raw TCP or websocket tunnel registration", nil)
 }
 
 func bufioReader(conn net.Conn) *bufio.Reader {
