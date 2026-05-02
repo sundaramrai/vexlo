@@ -119,8 +119,7 @@ pre {
 .footer-row,
 .toolbar,
 .toolbar-actions,
-.detail-header,
-.rule-inline {
+.detail-header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -202,8 +201,7 @@ pre {
 
 .filter-group,
 .search-wrap,
-.panel,
-.rules-card {
+.panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -401,60 +399,6 @@ pre {
   padding: 12px;
 }
 
-.diff-line {
-  display: block;
-  padding: 2px 0;
-}
-
-.diff-added {
-  color: var(--green);
-}
-
-.diff-removed {
-  color: var(--red);
-}
-
-.diff-changed {
-  color: var(--yellow);
-}
-
-.rules-wrap {
-  padding: 0 14px 14px;
-}
-
-.rules-card {
-  padding: 14px;
-  display: grid;
-  gap: 14px;
-}
-
-.rules-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.rule-list {
-  display: grid;
-  gap: 12px;
-}
-
-.rule-item {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #0d0d0d;
-}
-
-.rule-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -477,8 +421,7 @@ pre {
     border-bottom: 1px solid var(--line);
   }
 
-  .detail-grid,
-  .rules-grid {
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 }
