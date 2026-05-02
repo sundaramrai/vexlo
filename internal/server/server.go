@@ -14,16 +14,14 @@ import (
 )
 
 type Server struct {
-	cfg               Config
-	manager           *TunnelManager
-	db                *storage.DB
-	hub               *dashboard.Hub
-	authorizedSSHKeys map[string]struct{}
-	httpSrv           *http.Server
-	httpPlain         *http.Server
-	tcpLn             net.Listener
-	sshLn             net.Listener
-	closeOnce         sync.Once
+	cfg       Config
+	manager   *TunnelManager
+	db        *storage.DB
+	hub       *dashboard.Hub
+	httpSrv   *http.Server
+	httpPlain *http.Server
+	tcpLn     net.Listener
+	closeOnce sync.Once
 }
 
 func New(cfg Config) (*Server, error) {
@@ -31,19 +29,13 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	authorizedSSHKeys, err := loadAuthorizedKeys(cfg.AllowedSSHKeysPath)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
 	hub := dashboard.NewHub()
-	manager := NewTunnelManager(cfg, db, hub, authorizedSSHKeys)
+	manager := NewTunnelManager(cfg, db, hub)
 	return &Server{
-		cfg:               cfg,
-		db:                db,
-		hub:               hub,
-		manager:           manager,
-		authorizedSSHKeys: authorizedSSHKeys,
+		cfg:     cfg,
+		db:      db,
+		hub:     hub,
+		manager: manager,
 	}, nil
 }
 
@@ -69,13 +61,6 @@ func (s *Server) Start(ctx context.Context) error {
 	s.tcpLn = tcpLn
 	go s.acceptBinary(ctx)
 
-	sshLn, err := net.Listen("tcp", s.cfg.SSHAddr)
-	if err != nil {
-		return err
-	}
-	s.sshLn = sshLn
-	go s.acceptSSH(ctx)
-
 	go func() {
 		<-ctx.Done()
 		s.shutdown(context.Background())
@@ -84,7 +69,6 @@ func (s *Server) Start(ctx context.Context) error {
 	slog.Info("server listeners ready",
 		"http_addr", s.cfg.HTTPAddr,
 		"tcp_addr", s.cfg.TCPAddr,
-		"ssh_addr", s.cfg.SSHAddr,
 		"tls_enabled", s.cfg.EnableTLS,
 	)
 	if s.cfg.EnableTLS {
@@ -135,9 +119,6 @@ func (s *Server) shutdown(ctx context.Context) {
 		}
 		if s.tcpLn != nil {
 			_ = s.tcpLn.Close()
-		}
-		if s.sshLn != nil {
-			_ = s.sshLn.Close()
 		}
 		_ = s.db.Close()
 	})
