@@ -21,6 +21,11 @@
 
 # TLS / ACME cache
 /acme-cache/
+/ssh_host_key
+/ssh_host_key.pub
+
+# Go Cache
+/.gocache/
 
 # Editor and OS noise
 .DS_Store
