@@ -73,26 +73,12 @@ func (db *DB) migrate() error {
 			response_status INTEGER,
 			response_headers TEXT,
 			response_body TEXT,
-			diff_result TEXT,
 			duration_ms INTEGER,
 			created_at DATETIME NOT NULL,
 			FOREIGN KEY (request_id) REFERENCES requests(id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS routing_rules (
-			id TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL,
-			match_method TEXT,
-			match_path TEXT,
-			match_header_key TEXT,
-			match_header_value TEXT,
-			target_port INTEGER NOT NULL,
-			priority INTEGER NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (session_id) REFERENCES sessions(id)
-		)`,
 		`CREATE INDEX IF NOT EXISTS idx_requests_session_created_at ON requests(session_id, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_replays_request_created_at ON replays(request_id, created_at DESC)`,
-		`CREATE INDEX IF NOT EXISTS idx_routing_rules_session_priority ON routing_rules(session_id, priority)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.sql.Exec(stmt); err != nil {
