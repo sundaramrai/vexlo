@@ -74,20 +74,20 @@ func (db *DB) GetRequest(id string) (*model.CapturedRequest, error) {
 func (db *DB) InsertReplay(replay model.CapturedReplay) {
 	db.Enqueue(func(tx *sql.Tx) error {
 		_, err := tx.Exec(`INSERT INTO replays
-			(id, request_id, mutated_headers, mutated_body, response_status, response_headers, response_body, diff_result, duration_ms, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(id, request_id, mutated_headers, mutated_body, response_status, response_headers, response_body, duration_ms, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			replay.ID, replay.RequestID, replay.MutatedHeaders, replay.MutatedBody, replay.ResponseStatus,
-			replay.ResponseHeader, replay.ResponseBody, replay.DiffResult, replay.DurationMS, replay.CreatedAt)
+			replay.ResponseHeader, replay.ResponseBody, replay.DurationMS, replay.CreatedAt)
 		return err
 	})
 }
 
 func (db *DB) LatestReplay(requestID string) (*model.CapturedReplay, error) {
 	var replay model.CapturedReplay
-	err := db.sql.QueryRow(`SELECT id, request_id, mutated_headers, mutated_body, response_status, response_headers, response_body, diff_result, duration_ms, created_at
+	err := db.sql.QueryRow(`SELECT id, request_id, mutated_headers, mutated_body, response_status, response_headers, response_body, duration_ms, created_at
 		FROM replays WHERE request_id = ? ORDER BY created_at DESC LIMIT 1`, requestID).
 		Scan(&replay.ID, &replay.RequestID, &replay.MutatedHeaders, &replay.MutatedBody, &replay.ResponseStatus,
-			&replay.ResponseHeader, &replay.ResponseBody, &replay.DiffResult, &replay.DurationMS, &replay.CreatedAt)
+			&replay.ResponseHeader, &replay.ResponseBody, &replay.DurationMS, &replay.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
