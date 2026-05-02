@@ -78,62 +78,11 @@
           <button type="button" class="tab-button" data-tab="mutate" role="tab" aria-selected="false">
             MUTATE
           </button>
-          <button type="button" class="tab-button" data-tab="diff" role="tab" aria-selected="false">
-            DIFF
-          </button>
         </div>
 
         <div class="detail-grid">
           <section class="panel" id="left-panel" aria-live="polite"></section>
           <section class="panel" id="right-panel"></section>
-        </div>
-
-        <div class="rules-wrap">
-          <div class="rules-card">
-            <div class="rule-header">
-              <div>
-                <strong>Route rules</strong>
-                <div class="help">
-                  Match incoming request paths and route them to a different
-                  local port.
-                </div>
-              </div>
-            </div>
-
-            <form id="rule-form" class="split">
-              <div class="rules-grid">
-                <div class="field">
-                  <label for="rule-path">Match path contains</label>
-                  <input id="rule-path" name="match_path" placeholder="/api" />
-                </div>
-                <div class="field">
-                  <label for="rule-method">Method</label>
-                  <select id="rule-method" name="match_method">
-                    <option value="">Any</option>
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="PUT">PUT</option>
-                    <option value="DELETE">DELETE</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="rule-target-port">Target port</label>
-                  <input id="rule-target-port" name="target_port" type="number" min="1" step="1" placeholder="4000"
-                    required />
-                </div>
-                <div class="field">
-                  <label for="rule-priority">Priority</label>
-                  <input id="rule-priority" name="priority" type="number" min="1" step="1" placeholder="auto" />
-                </div>
-              </div>
-              <div class="rule-inline">
-                <button type="submit" id="add-rule">add rule</button>
-                <span class="help" id="rules-status">No rules loaded yet.</span>
-              </div>
-            </form>
-
-            <div class="rule-list" id="rule-list"></div>
-          </div>
         </div>
 
         <footer class="footer">
