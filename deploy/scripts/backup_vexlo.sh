@@ -15,8 +15,4 @@ for suffix in -wal -shm; do
   fi
 done
 
-if [[ -f /etc/vexlo/ssh_host_key ]]; then
-  install -m 0600 /etc/vexlo/ssh_host_key "${TARGET_DIR}/ssh_host_key"
-fi
-
 echo "Backup written to ${TARGET_DIR}"
