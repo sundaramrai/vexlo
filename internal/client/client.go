@@ -28,13 +28,14 @@ var sshSignerOnce = sync.OnceValues(func() (ssh.Signer, error) {
 })
 
 type Config struct {
-	ServerAddr string
-	Scheme     string
-	Mode       string
-	HostURL    string
-	SSHAddr    string
-	WSURL      string
-	LocalPort  int
+	ServerAddr    string
+	Scheme        string
+	Mode          string
+	HostURL       string
+	SSHAddr       string
+	WSURL         string
+	LocalPort     int
+	RegisterToken string
 }
 
 func DefaultConfig() Config {
@@ -51,8 +52,9 @@ func DefaultConfig() Config {
 
 func Run(ctx context.Context, cfg Config) error {
 	var sessionID string
+	var resumeToken string
 	for {
-		if err := runOnce(ctx, cfg, &sessionID); err != nil {
+		if err := runOnce(ctx, cfg, &sessionID, &resumeToken); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -66,7 +68,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
-func runOnce(ctx context.Context, cfg Config, sessionID *string) error {
+func runOnce(ctx context.Context, cfg Config, sessionID *string, resumeToken *string) error {
 	var conn net.Conn
 	var err error
 	switch cfg.Mode {
@@ -82,11 +84,15 @@ func runOnce(ctx context.Context, cfg Config, sessionID *string) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	if cfg.Mode != "ws" {
-		reg := protocol.Register{SessionID: *sessionID, LocalPort: cfg.LocalPort, ConnectionType: cfg.Mode}
-		if err := protocol.Encode(conn, protocol.TypeRegister, reg); err != nil {
-			return err
-		}
+	reg := protocol.Register{
+		SessionID:      *sessionID,
+		LocalPort:      cfg.LocalPort,
+		ConnectionType: cfg.Mode,
+		ClientToken:    cfg.RegisterToken,
+		ResumeToken:    *resumeToken,
+	}
+	if err := protocol.Encode(conn, protocol.TypeRegister, reg); err != nil {
+		return err
 	}
 
 	reader := newReader(conn)
@@ -96,6 +102,7 @@ func runOnce(ctx context.Context, cfg Config, sessionID *string) error {
 		return fmt.Errorf("register failed: %w", err)
 	}
 	*sessionID = registered.SessionID
+	*resumeToken = registered.TunnelToken
 	log.Printf("%s -> localhost:%d", registered.ConnectURL, cfg.LocalPort)
 	log.Printf("dashboard: %s", registered.DashboardURL)
 
