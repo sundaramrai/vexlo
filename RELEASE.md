@@ -53,7 +53,7 @@ Vexlo v0.1.0
 Summary:
 
 ```text
-Vexlo is a self-hosted localhost tunnel server with a terminal-style dashboard for request capture, replay, mutation, and route rules.
+Vexlo is a self-hosted localhost tunnel server with a terminal-style dashboard for request capture, replay, and mutation.
 ```
 
 ## Post-Release Checks
