@@ -115,8 +115,6 @@ Cross-platform release artifacts are built automatically by the tag-triggered Gi
 
 For a public release, follow [RELEASE.md](RELEASE.md).
 
-The intended first public version is `v0.1.0`.
-
 Release assets include:
 
 - Linux server archives for `amd64` and `arm64`
