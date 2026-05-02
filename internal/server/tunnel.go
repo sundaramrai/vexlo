@@ -21,12 +21,13 @@ import (
 type forwarderFunc func(context.Context, *http.Request, []byte, int) (*protocol.ForwardResponse, error)
 
 type TunnelManager struct {
-	tunnels   map[string]*Tunnel
-	bySession map[string]*Tunnel
-	mu        sync.RWMutex
-	storage   *storage.DB
-	dashboard *dashboard.Hub
-	cfg       Config
+	tunnels           map[string]*Tunnel
+	bySession         map[string]*Tunnel
+	mu                sync.RWMutex
+	storage           *storage.DB
+	dashboard         *dashboard.Hub
+	cfg               Config
+	authorizedSSHKeys map[string]struct{}
 }
 
 type Tunnel struct {
@@ -48,13 +49,14 @@ type Tunnel struct {
 	closeOnce      sync.Once
 }
 
-func NewTunnelManager(cfg Config, db *storage.DB, hub *dashboard.Hub) *TunnelManager {
+func NewTunnelManager(cfg Config, db *storage.DB, hub *dashboard.Hub, authorizedSSHKeys map[string]struct{}) *TunnelManager {
 	return &TunnelManager{
-		tunnels:   map[string]*Tunnel{},
-		bySession: map[string]*Tunnel{},
-		storage:   db,
-		dashboard: hub,
-		cfg:       cfg,
+		tunnels:           map[string]*Tunnel{},
+		bySession:         map[string]*Tunnel{},
+		storage:           db,
+		dashboard:         hub,
+		cfg:               cfg,
+		authorizedSSHKeys: authorizedSSHKeys,
 	}
 }
 
@@ -91,6 +93,9 @@ func newForwarderTunnel(session Session, forwarder forwarderFunc, closeConn func
 }
 
 func (m *TunnelManager) Register(conn net.Conn, reg protocol.Register) (*protocol.Registered, *Tunnel, error) {
+	if err := m.validateRegistration(reg); err != nil {
+		return nil, nil, err
+	}
 	session, err := m.resolveSession(reg)
 	if err != nil {
 		return nil, nil, err
@@ -105,6 +110,9 @@ func (m *TunnelManager) Register(conn net.Conn, reg protocol.Register) (*protoco
 }
 
 func (m *TunnelManager) RegisterForwarder(reg protocol.Register, forwarder forwarderFunc, closeConn func() error) (*protocol.Registered, *Tunnel, error) {
+	if err := m.validateRegistration(reg); err != nil {
+		return nil, nil, err
+	}
 	session, err := m.resolveSession(reg)
 	if err != nil {
 		return nil, nil, err
@@ -125,6 +133,7 @@ func (m *TunnelManager) resolveSession(reg protocol.Register) (Session, error) {
 		ConnectionType: reg.ConnectionType,
 		StartedAt:      time.Now().UTC(),
 		AuthToken:      randomID(16),
+		TunnelToken:    randomID(16),
 	}
 	if reg.SessionID != "" {
 		if existing, err := m.storage.GetSession(reg.SessionID); err == nil {
@@ -244,6 +253,12 @@ func (m *TunnelManager) FindBySession(sessionID string) *Tunnel {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.bySession[sessionID]
+}
+
+func (m *TunnelManager) ActiveTunnelCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.bySession)
 }
 
 func (t *Tunnel) send(kind string, v any) error {
