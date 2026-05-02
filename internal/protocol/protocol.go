@@ -29,7 +29,8 @@ type Register struct {
 	LocalPort      int    `json:"local_port"`
 	ConnectionType string `json:"connection_type"`
 	PublicKey      string `json:"public_key,omitempty"`
-	AuthToken      string `json:"auth_token,omitempty"`
+	ClientToken    string `json:"client_token,omitempty"`
+	ResumeToken    string `json:"resume_token,omitempty"`
 }
 
 type Registered struct {
@@ -40,6 +41,7 @@ type Registered struct {
 	ConnectionType string    `json:"connection_type"`
 	StartedAt      time.Time `json:"started_at"`
 	AuthToken      string    `json:"auth_token"`
+	TunnelToken    string    `json:"tunnel_token"`
 }
 
 type ForwardRequest struct {
