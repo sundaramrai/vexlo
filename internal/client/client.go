@@ -2,38 +2,19 @@ package client
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/coder/websocket"
-	"golang.org/x/crypto/ssh"
 
 	"vexlo/internal/protocol"
 )
 
-var sshSignerOnce = sync.OnceValues(func() (ssh.Signer, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.NewSignerFromKey(key)
-})
-
 type Config struct {
 	ServerAddr    string
-	Scheme        string
-	Mode          string
-	HostURL       string
-	SSHAddr       string
-	WSURL         string
 	LocalPort     int
 	RegisterToken string
 }
@@ -41,11 +22,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		ServerAddr: "127.0.0.1:9000",
-		Scheme:     "http",
-		Mode:       "tcp",
-		HostURL:    "http://localhost:8080",
-		SSHAddr:    "127.0.0.1:2222",
-		WSURL:      "ws://127.0.0.1:8080/ws/tunnel",
 		LocalPort:  3000,
 	}
 }
@@ -69,16 +45,8 @@ func Run(ctx context.Context, cfg Config) error {
 }
 
 func runOnce(ctx context.Context, cfg Config, sessionID *string, resumeToken *string) error {
-	var conn net.Conn
-	var err error
-	switch cfg.Mode {
-	case "ssh":
-		conn, err = dialSSH(cfg, *sessionID)
-	case "ws":
-		conn, err = dialWS(ctx, cfg)
-	default:
-		conn, err = net.DialTimeout("tcp", cfg.ServerAddr, 5*time.Second)
-	}
+	_ = ctx
+	conn, err := net.DialTimeout("tcp", cfg.ServerAddr, 5*time.Second)
 	if err != nil {
 		return err
 	}
@@ -87,7 +55,7 @@ func runOnce(ctx context.Context, cfg Config, sessionID *string, resumeToken *st
 	reg := protocol.Register{
 		SessionID:      *sessionID,
 		LocalPort:      cfg.LocalPort,
-		ConnectionType: cfg.Mode,
+		ConnectionType: "tcp",
 		ClientToken:    cfg.RegisterToken,
 		ResumeToken:    *resumeToken,
 	}
@@ -147,39 +115,4 @@ func handleForward(conn net.Conn, msg protocol.ForwardRequest) {
 		Body:       body,
 		DurationMs: time.Since(start).Milliseconds(),
 	})
-}
-
-func dialWS(ctx context.Context, cfg Config) (net.Conn, error) {
-	conn, _, err := websocket.Dial(ctx, cfg.WSURL+"?port="+fmt.Sprint(cfg.LocalPort), nil)
-	if err != nil {
-		return nil, err
-	}
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
-}
-
-func dialSSH(cfg Config, sessionID string) (net.Conn, error) {
-	signer, err := sshSignerOnce()
-	if err != nil {
-		return nil, err
-	}
-	clientCfg := &ssh.ClientConfig{
-		User:            "vexlo",
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         5 * time.Second,
-	}
-	raw, err := net.DialTimeout("tcp", cfg.SSHAddr, 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	conn, chans, reqs, err := ssh.NewClientConn(raw, cfg.SSHAddr, clientCfg)
-	if err != nil {
-		return nil, err
-	}
-	client := ssh.NewClient(conn, chans, reqs)
-	ch, _, err := client.OpenChannel("tunnel", []byte(fmt.Sprintf(`{"port":%d,"session_id":"%s"}`, cfg.LocalPort, sessionID)))
-	if err != nil {
-		return nil, err
-	}
-	return sshChannelConn{Channel: ch, client: client}, nil
 }
