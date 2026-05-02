@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.1
+
+Release maintenance update.
+
+- switched module path to `github.com/sundaramrai/vexlo`
+- fixed GitHub release workflow permissions
+- updated the GitHub release action to `softprops/action-gh-release@v3`
+- trimmed and clarified top-level documentation
+
 ## v0.1.0
 
 Initial public release of Vexlo as a self-hosted localhost tunnel server.
