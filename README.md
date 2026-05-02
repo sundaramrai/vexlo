@@ -1,6 +1,6 @@
 # Vexlo
 
-Vexlo is a lightweight self-hosted localhost tunnel written in Go. It exposes a local port through a server, captures requests/responses, persists them to SQLite, and provides a terminal-style dashboard for replay, mutation, diffing, and route rules.
+Vexlo is a self-hosted localhost tunnel written in Go. It exposes a local port through a server, captures requests and responses, persists them to SQLite, and provides a terminal-style dashboard for replay, mutation, diffing, and route rules.
 
 ## What is included
 
@@ -12,6 +12,14 @@ Vexlo is a lightweight self-hosted localhost tunnel written in Go. It exposes a 
 - Replay with request mutation
 - JSON/text response diffing
 - GitHub Actions release workflow
+
+## Positioning
+
+Vexlo is currently packaged as a self-hosted tunnel server.
+
+- You can run it locally for development.
+- You can deploy it on your own VPS when you have infrastructure.
+- You do not need an official hosted Vexlo service to use it.
 
 ## Project layout
 
@@ -36,7 +44,14 @@ internal/protocol   Framed transport protocol
 ### 2. Run the server
 
 ```bash
-go run ./cmd/server --http-addr :8080 --tcp-addr :9000 --ssh-addr :2222 --base-domain localhost --host-url http://localhost:8080 --capture-body-limit 262144
+go run ./cmd/server \
+  --http-addr :8080 \
+  --tcp-addr :9000 \
+  --ssh-addr :2222 \
+  --base-domain localhost \
+  --host-url http://localhost:8080 \
+  --capture-body-limit 262144 \
+  --registration-token change-me-dev-token
 ```
 
 This starts:
@@ -45,13 +60,16 @@ This starts:
 - Binary tunnel listener on `127.0.0.1:9000`
 - SSH tunnel listener on `127.0.0.1:2222`
 - SQLite database at `./vexlo.db` by default, configurable with `--db`
+- Health endpoint at `http://localhost:8080/healthz`
+- Metrics endpoint at `http://localhost:8080/metrics`
 
 By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
+New TCP and WebSocket tunnel registrations require `--registration-token`. SSH registrations require an `authorized_keys` style file via `--allowed-ssh-keys`.
 
 With defaults, this can usually be shortened to:
 
 ```bash
-go run ./cmd/server
+go run ./cmd/server --registration-token change-me-dev-token
 ```
 
 ### 3. Run your local app
@@ -63,13 +81,13 @@ For example, start your app on port `3000`.
 Binary mode:
 
 ```bash
-go run ./cmd/client --server 127.0.0.1:9000 3000
+go run ./cmd/client --server 127.0.0.1:9000 --register-token change-me-dev-token 3000
 ```
 
 With defaults, this can usually be shortened to:
 
 ```bash
-go run ./cmd/client 3000
+go run ./cmd/client --register-token change-me-dev-token 3000
 ```
 
 SSH mode:
@@ -89,7 +107,7 @@ When the SSH session is accepted, Vexlo prints the assigned public URL and dashb
 WebSocket mode:
 
 ```bash
-go run ./cmd/client --mode ws --ws-url ws://127.0.0.1:8080/ws/tunnel 3000
+go run ./cmd/client --mode ws --ws-url ws://127.0.0.1:8080/ws/tunnel --register-token change-me-dev-token 3000
 ```
 
 The client prints:
@@ -119,6 +137,22 @@ The dashboard source lives in:
 go build -o dist/vexlo-server ./cmd/server
 go build -o dist/vexlo ./cmd/client
 ```
+
+Cross-platform release artifacts are built automatically by the tag-triggered GitHub release workflow in [.github/workflows/release.yml](.github/workflows/release.yml).
+
+## Release
+
+For a public release, follow [RELEASE.md](RELEASE.md).
+
+The intended first public version is `v0.1.0`.
+
+Release assets include:
+
+- Linux server archives for `amd64` and `arm64`
+- Linux client archives for `amd64` and `arm64`
+- macOS client archives for `amd64` and `arm64`
+- Windows client zip for `amd64`
+- `SHA256SUMS.txt`
 
 ## Linting
 
@@ -161,6 +195,11 @@ go build ./...
 - For real public subdomains, run the server behind a DNS name and pass `--base-domain your-domain.example`.
 - For TLS, start the server with `--tls`, expose ports `80` and `443`, and point your base domain plus subdomains at the VPS.
 - The current local-first flow uses `/t/<subdomain>` when `--base-domain localhost`.
+- For production, set a non-empty `--registration-token` and distribute it only to trusted TCP/WebSocket tunnel clients.
+- For SSH production use, set `--allowed-ssh-keys /path/to/authorized_keys` and persist `--ssh-host-key /path/to/ssh_host_key`.
+- The dashboard token is now moved into an `HttpOnly` cookie and stripped from the browser address bar on first load.
+- Configure `--retention-period` explicitly based on your storage and compliance requirements.
+- Configure `--max-request-body-bytes`, `--max-api-body-bytes`, and the HTTP timeout flags for your workload instead of relying on defaults.
 - Native `ssh -R` sessions proxy traffic correctly, but request routing to multiple target ports is still best served by the Vexlo CLI or WebSocket client because OpenSSH remote forwarding maps to a single local target.
 - API responses include `X-Request-Id`, and server logs now emit request IDs plus status and duration metadata for API and WebSocket endpoints.
 - Deployment artifacts for Oracle Ubuntu, `systemd`, and DuckDNS are in [deploy/README.md](deploy/README.md).
@@ -176,7 +215,11 @@ go build ./...
   --ssh-addr :2222 \
   --base-domain vexlo.example.com \
   --host-url https://vexlo.example.com \
+  --registration-token replace-with-strong-secret \
+  --allowed-ssh-keys /etc/vexlo/authorized_keys \
+  --ssh-host-key /etc/vexlo/ssh_host_key \
   --capture-body-limit 262144 \
+  --retention-period 168h \
   --acme-email you@example.com \
   --acme-cache ./acme-cache
 ```
@@ -210,7 +253,7 @@ sudo ./deploy/scripts/install_oracle_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
-  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64
+  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz
 sudo systemctl start vexlo
 sudo journalctl -u vexlo -f
 ```
@@ -228,3 +271,5 @@ sudo ./deploy/scripts/install_duckdns_cron.sh
 ```bash
 go build ./...
 ```
+
+For release history, see [CHANGELOG.md](CHANGELOG.md).
