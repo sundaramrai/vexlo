@@ -28,7 +28,6 @@ type Register struct {
 	SessionID      string `json:"session_id,omitempty"`
 	LocalPort      int    `json:"local_port"`
 	ConnectionType string `json:"connection_type"`
-	PublicKey      string `json:"public_key,omitempty"`
 	ClientToken    string `json:"client_token,omitempty"`
 	ResumeToken    string `json:"resume_token,omitempty"`
 }
