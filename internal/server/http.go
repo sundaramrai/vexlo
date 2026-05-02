@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 
 const methodNotAllowed = "method not allowed"
 const requestNotFound = "request not found"
+const headerContentType = "Content-Type"
 
 const (
 	apiRequestsPath = "/api/requests/"
@@ -26,17 +28,19 @@ const (
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.withRequestLogging("root", s.handleRoot))
-	mux.HandleFunc("/assets/dashboard.css", s.withRequestLogging("dashboard_css", dashboard.ServeCSS))
-	mux.HandleFunc("/assets/dashboard.js", s.withRequestLogging("dashboard_js", dashboard.ServeJS))
-	mux.HandleFunc("/connect", s.withRequestLogging("connect_page", s.handleConnectPage))
-	mux.HandleFunc("/api/sessions", s.withRequestLogging("list_sessions", s.handleSessions))
-	mux.HandleFunc("/api/requests", s.withRequestLogging("list_requests", s.handleRequests))
-	mux.HandleFunc(apiRequestsPath, s.withRequestLogging("get_request", s.handleRequestByID))
-	mux.HandleFunc("/api/replay", s.withRequestLogging("replay_request", s.handleReplay))
-	mux.HandleFunc("/api/rules", s.withRequestLogging("rules", s.handleRules))
-	mux.HandleFunc(apiRulesPath, s.withRequestLogging("delete_rule", s.handleRuleByID))
-	mux.HandleFunc("/ws/events", s.withRequestLogging("events_ws", s.handleEventsWS))
+	mux.HandleFunc("/", s.withRequestLogging("root", s.withAdminAuth(s.handleRoot)))
+	mux.HandleFunc("/assets/dashboard.css", s.withRequestLogging("dashboard_css", s.withAdminAuth(dashboard.ServeCSS)))
+	mux.HandleFunc("/assets/dashboard.js", s.withRequestLogging("dashboard_js", s.withAdminAuth(dashboard.ServeJS)))
+	mux.HandleFunc("/connect", s.withRequestLogging("connect_page", s.withAdminAuth(s.handleConnectPage)))
+	mux.HandleFunc("/healthz", s.withRequestLogging("healthz", s.handleHealthz))
+	mux.HandleFunc("/metrics", s.withRequestLogging("metrics", s.handleMetrics))
+	mux.HandleFunc("/api/sessions", s.withRequestLogging("list_sessions", s.withAdminAuth(s.handleSessions)))
+	mux.HandleFunc("/api/requests", s.withRequestLogging("list_requests", s.withAdminAuth(s.handleRequests)))
+	mux.HandleFunc(apiRequestsPath, s.withRequestLogging("get_request", s.withAdminAuth(s.handleRequestByID)))
+	mux.HandleFunc("/api/replay", s.withRequestLogging("replay_request", s.withAdminAuth(s.handleReplay)))
+	mux.HandleFunc("/api/rules", s.withRequestLogging("rules", s.withAdminAuth(s.handleRules)))
+	mux.HandleFunc(apiRulesPath, s.withRequestLogging("delete_rule", s.withAdminAuth(s.handleRuleByID)))
+	mux.HandleFunc("/ws/events", s.withRequestLogging("events_ws", s.withAdminAuth(s.handleEventsWS)))
 	mux.HandleFunc("/ws/tunnel", s.withRequestLogging("tunnel_ws", s.handleTunnelWS))
 	mux.HandleFunc("/tunnel/connect", s.withRequestLogging("binary_register", s.handleBinaryRegister))
 	mux.HandleFunc("/t/", s.withRequestLogging("path_tunnel", s.handlePathTunnel))
@@ -50,12 +54,18 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	if token := r.URL.Query().Get("token"); token != "" {
 		http.SetCookie(w, &http.Cookie{Name: "vexlo_token", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		redirectURL := *r.URL
+		query := redirectURL.Query()
+		query.Del("token")
+		redirectURL.RawQuery = query.Encode()
+		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return
 	}
 	dashboard.ServeHTML(w, r)
 }
 
 func (s *Server) handleConnectPage(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set(headerContentType, "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><title>Vexlo Connect</title></head><body style="background:#0d0d0d;color:#e5e5e5;font-family:monospace;padding:24px"><h1>Vexlo Browser Client</h1><p>Open the main dashboard to inspect requests and manage the browser tunnel. This endpoint is reserved for browser tunnel usage.</p></body></html>`))
 }
 
@@ -80,9 +90,16 @@ func (s *Server) handlePathTunnel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tunnel *Tunnel) {
+	r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxRequestBodyBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		s.writeError(w, r, http.StatusBadRequest, "failed to read request body", err)
+		status := http.StatusBadRequest
+		clientMsg := "failed to read request body"
+		if strings.Contains(err.Error(), "request body too large") {
+			status = http.StatusRequestEntityTooLarge
+			clientMsg = "request body exceeds configured limit"
+		}
+		s.writeError(w, r, status, clientMsg, err)
 		return
 	}
 	_ = r.Body.Close()
@@ -130,8 +147,41 @@ func (s *Server) handlePublicRequest(w http.ResponseWriter, r *http.Request, tun
 	s.hub.Broadcast(dashboard.Event{
 		Type:      "new_request",
 		SessionID: tunnel.session.ID,
-		Payload:   record,
+		Payload:   sanitizeCapturedRequest(record),
 	})
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.db.Ping(ctx); err != nil {
+		s.writeError(w, r, http.StatusServiceUnavailable, "database unavailable", err)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"status":         "ok",
+		"active_tunnels": s.manager.ActiveTunnelCount(),
+		"db_queue_depth": s.db.QueueDepth(),
+		"retention_secs": int64(s.cfg.RetentionPeriod.Seconds()),
+	})
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeError(w, r, http.StatusMethodNotAllowed, methodNotAllowed, nil)
+		return
+	}
+	w.Header().Set(headerContentType, "text/plain; version=0.0.4")
+	_, _ = fmt.Fprintf(w,
+		"vexlo_active_tunnels %d\nvexlo_db_queue_depth %d\nvexlo_retention_seconds %d\n",
+		s.manager.ActiveTunnelCount(),
+		s.db.QueueDepth(),
+		int64(s.cfg.RetentionPeriod.Seconds()),
+	)
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +217,11 @@ func (s *Server) handleRequests(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusInternalServerError, "failed to list requests", err, "session_id", sessionID)
 		return
 	}
-	writeJSON(w, requests)
+	sanitized := make([]model.CapturedRequest, 0, len(requests))
+	for _, item := range requests {
+		sanitized = append(sanitized, sanitizeCapturedRequest(item))
+	}
+	writeJSON(w, sanitized)
 }
 
 func (s *Server) handleRequestByID(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +244,7 @@ func (s *Server) handleRequestByID(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusNotFound, requestNotFound, nil, "session_id", sessionID, "request_record_id", id)
 		return
 	}
-	writeJSON(w, item)
+	writeJSON(w, sanitizeCapturedRequest(*item))
 }
 
 type replayPayload struct {
@@ -210,6 +264,7 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload replayPayload
+	r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxAPIBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		s.writeError(w, r, http.StatusBadRequest, "invalid payload", err, "session_id", sessionID)
 		return
@@ -274,7 +329,7 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:      time.Now().UTC(),
 	}
 	s.db.InsertReplay(replayRecord)
-	writeJSON(w, replayRecord)
+	writeJSON(w, sanitizeCapturedReplay(replayRecord))
 }
 
 func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
@@ -293,6 +348,7 @@ func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, rules)
 	case http.MethodPost:
 		var rule model.RoutingRule
+		r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxAPIBodyBytes)
 		if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
 			s.writeError(w, r, http.StatusBadRequest, "invalid payload", err, "session_id", sessionID)
 			return
@@ -345,12 +401,13 @@ func (s *Server) handleRuleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, "application/json")
 	_ = json.NewEncoder(w).Encode(v)
 }
 
 func sanitizeSession(session model.Session) model.Session {
 	session.AuthToken = ""
+	session.TunnelToken = ""
 	return session
 }
 
