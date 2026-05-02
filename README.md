@@ -1,16 +1,13 @@
 # Vexlo
 
-Vexlo is a self-hosted localhost tunnel written in Go. It exposes a local port through a server, captures requests and responses, persists them to SQLite, and provides a terminal-style dashboard for replay, mutation, diffing, and route rules.
+Vexlo is a self-hosted localhost tunnel written in Go. It exposes a local port through a server, captures requests and responses, persists them to SQLite, and provides a terminal-style dashboard for replay and mutation.
 
 ## What is included
 
 - Binary TCP tunnel client/server
-- SSH-backed tunnel transport, including native `ssh -R` remote forwarding
-- Browser/WebSocket tunnel transport endpoint
-- SQLite persistence for sessions, requests, replays, and routing rules
+- SQLite persistence for sessions, requests, and replays
 - Embedded dashboard assets with live updates over WebSocket
 - Replay with request mutation
-- JSON/text response diffing
 - GitHub Actions release workflow
 
 ## Positioning
@@ -31,7 +28,6 @@ internal/client     Tunnel client implementation
 internal/model      Shared data models
 internal/storage    SQLite layer
 internal/dashboard  Embedded dashboard HTML/CSS/JS + websocket hub
-internal/replay     Replay and diff logic
 internal/protocol   Framed transport protocol
 ```
 
@@ -47,7 +43,6 @@ internal/protocol   Framed transport protocol
 go run ./cmd/server \
   --http-addr :8080 \
   --tcp-addr :9000 \
-  --ssh-addr :2222 \
   --base-domain localhost \
   --host-url http://localhost:8080 \
   --capture-body-limit 262144 \
@@ -58,13 +53,11 @@ This starts:
 
 - Dashboard/API on `http://localhost:8080`
 - Binary tunnel listener on `127.0.0.1:9000`
-- SSH tunnel listener on `127.0.0.1:2222`
 - SQLite database at `./vexlo.db` by default, configurable with `--db`
 - Health endpoint at `http://localhost:8080/healthz`
-- Metrics endpoint at `http://localhost:8080/metrics`
 
 By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
-New TCP and WebSocket tunnel registrations require `--registration-token`. SSH registrations require an `authorized_keys` style file via `--allowed-ssh-keys`.
+Tunnel registration requires `--registration-token`.
 
 With defaults, this can usually be shortened to:
 
@@ -90,26 +83,6 @@ With defaults, this can usually be shortened to:
 go run ./cmd/client --register-token change-me-dev-token 3000
 ```
 
-SSH mode:
-
-```bash
-go run ./cmd/client --mode ssh --ssh-addr 127.0.0.1:2222 3000
-```
-
-Native OpenSSH remote-forward mode:
-
-```bash
-ssh -N -R 80:localhost:3000 your-user@127.0.0.1 -p 2222
-```
-
-When the SSH session is accepted, Vexlo prints the assigned public URL and dashboard URL in the SSH output stream.
-
-WebSocket mode:
-
-```bash
-go run ./cmd/client --mode ws --ws-url ws://127.0.0.1:8080/ws/tunnel --register-token change-me-dev-token 3000
-```
-
 The client prints:
 
 - Public tunnel path, for local development this is `http://localhost:8080/t/<subdomain>`
@@ -122,8 +95,6 @@ Open the printed dashboard URL. From there you can:
 - Inspect requests in real time
 - Replay requests
 - Mutate headers/body before replay
-- View diff output
-- Add basic routing rules
 
 The dashboard source lives in:
 
@@ -195,14 +166,12 @@ go build ./...
 - For real public subdomains, run the server behind a DNS name and pass `--base-domain your-domain.example`.
 - For TLS, start the server with `--tls`, expose ports `80` and `443`, and point your base domain plus subdomains at the VPS.
 - The current local-first flow uses `/t/<subdomain>` when `--base-domain localhost`.
-- For production, set a non-empty `--registration-token` and distribute it only to trusted TCP/WebSocket tunnel clients.
-- For SSH production use, set `--allowed-ssh-keys /path/to/authorized_keys` and persist `--ssh-host-key /path/to/ssh_host_key`.
+- For production, set a non-empty `--registration-token` and distribute it only to trusted clients.
 - The dashboard token is now moved into an `HttpOnly` cookie and stripped from the browser address bar on first load.
 - Configure `--retention-period` explicitly based on your storage and compliance requirements.
 - Configure `--max-request-body-bytes`, `--max-api-body-bytes`, and the HTTP timeout flags for your workload instead of relying on defaults.
-- Native `ssh -R` sessions proxy traffic correctly, but request routing to multiple target ports is still best served by the Vexlo CLI or WebSocket client because OpenSSH remote forwarding maps to a single local target.
 - API responses include `X-Request-Id`, and server logs now emit request IDs plus status and duration metadata for API and WebSocket endpoints.
-- Deployment artifacts for Oracle Ubuntu, `systemd`, and DuckDNS are in [deploy/README.md](deploy/README.md).
+- Generic deployment artifacts for `systemd` and self-hosting are in [deploy/README.md](deploy/README.md).
 
 ## Production server example
 
@@ -212,58 +181,34 @@ go build ./...
   --http-addr :80 \
   --https-addr :443 \
   --tcp-addr :9000 \
-  --ssh-addr :2222 \
   --base-domain vexlo.example.com \
   --host-url https://vexlo.example.com \
   --registration-token replace-with-strong-secret \
-  --allowed-ssh-keys /etc/vexlo/authorized_keys \
-  --ssh-host-key /etc/vexlo/ssh_host_key \
   --capture-body-limit 262144 \
   --retention-period 168h \
   --acme-email you@example.com \
   --acme-cache ./acme-cache
 ```
 
-## Native SSH usage against a public server
+## Deployment
 
-```bash
-ssh -N -R 80:localhost:3000 vexlo@vexlo.example.com -p 2222
-```
-
-The server prints:
-
-- `Public URL: https://<subdomain>.vexlo.example.com`
-- `Dashboard: https://vexlo.example.com/?token=...&session=...`
-
-## Oracle Cloud deployment
-
-The repo includes ready-to-use deployment files:
+The repo includes ready-to-use deployment files for a Linux VPS:
 
 - [deploy/systemd/vexlo.service](deploy/systemd/vexlo.service)
 - [deploy/env/vexlo.env.example](deploy/env/vexlo.env.example)
-- [deploy/scripts/install_oracle_ubuntu.sh](deploy/scripts/install_oracle_ubuntu.sh)
-- [deploy/scripts/duckdns-update.sh](deploy/scripts/duckdns-update.sh)
-- [deploy/scripts/install_duckdns_cron.sh](deploy/scripts/install_duckdns_cron.sh)
+- [deploy/scripts/install_ubuntu.sh](deploy/scripts/install_ubuntu.sh)
 
 Typical flow on an Ubuntu VPS:
 
 ```bash
-chmod +x deploy/scripts/install_oracle_ubuntu.sh
-sudo ./deploy/scripts/install_oracle_ubuntu.sh \
+chmod +x deploy/scripts/install_ubuntu.sh
+sudo ./deploy/scripts/install_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
   https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz
 sudo systemctl start vexlo
 sudo journalctl -u vexlo -f
-```
-
-If you use DuckDNS:
-
-```bash
-sudo nano /etc/vexlo/vexlo.env
-chmod +x deploy/scripts/install_duckdns_cron.sh
-sudo ./deploy/scripts/install_duckdns_cron.sh
 ```
 
 ## Verification
