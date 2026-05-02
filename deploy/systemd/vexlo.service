@@ -17,6 +17,18 @@ ExecStart=/opt/vexlo/vexlo-server \
   --ssh-addr :2222 \
   --base-domain ${VEXLO_BASE_DOMAIN} \
   --host-url ${VEXLO_HOST_URL} \
+  --registration-token ${VEXLO_REGISTRATION_TOKEN} \
+  --admin-user ${VEXLO_ADMIN_USER} \
+  --admin-pass ${VEXLO_ADMIN_PASS} \
+  --allowed-ssh-keys /etc/vexlo/authorized_keys \
+  --ssh-host-key /etc/vexlo/ssh_host_key \
+  --capture-body-limit ${VEXLO_CAPTURE_BODY_LIMIT} \
+  --max-request-body-bytes ${VEXLO_MAX_REQUEST_BODY_BYTES} \
+  --max-api-body-bytes ${VEXLO_MAX_API_BODY_BYTES} \
+  --retention-period ${VEXLO_RETENTION_PERIOD} \
+  --read-timeout ${VEXLO_READ_TIMEOUT} \
+  --write-timeout ${VEXLO_WRITE_TIMEOUT} \
+  --idle-timeout ${VEXLO_IDLE_TIMEOUT} \
   --acme-email ${VEXLO_ACME_EMAIL} \
   --acme-cache /var/lib/vexlo/acme-cache \
   --db /var/lib/vexlo/vexlo.db
@@ -26,7 +38,15 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/vexlo /etc/vexlo /opt/vexlo
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/vexlo /etc/vexlo
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 LimitNOFILE=65536
