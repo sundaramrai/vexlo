@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -45,6 +46,7 @@ func (db *DB) migrate() error {
 			local_port INTEGER NOT NULL,
 			connection_type TEXT NOT NULL,
 			auth_token TEXT NOT NULL,
+			tunnel_token TEXT NOT NULL DEFAULT '',
 			started_at DATETIME NOT NULL,
 			ended_at DATETIME
 		)`,
@@ -97,7 +99,58 @@ func (db *DB) migrate() error {
 			return err
 		}
 	}
+	if err := ensureColumn(db.sql, "sessions", "tunnel_token", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := db.applyPragmas(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (db *DB) applyPragmas() error {
+	pragmas := []string{
+		`PRAGMA journal_mode=WAL;`,
+		`PRAGMA foreign_keys=ON;`,
+		`PRAGMA busy_timeout=5000;`,
+		`PRAGMA synchronous=NORMAL;`,
+	}
+	for _, pragma := range pragmas {
+		if _, err := db.sql.Exec(pragma); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureColumn(db *sql.DB, table, column, ddl string) error {
+	rows, err := db.Query(fmt.Sprintf(`PRAGMA table_info(%s)`, table))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			defaultV   sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultV, &primaryKey); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if rows.Err() != nil {
+		return rows.Err()
+	}
+	_, err = db.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, ddl))
+	return err
 }
 
 func (db *DB) RunWriter(ctx context.Context) {
@@ -148,4 +201,12 @@ func (db *DB) Close() error {
 		<-db.writerDone
 	}
 	return db.sql.Close()
+}
+
+func (db *DB) Ping(ctx context.Context) error {
+	return db.sql.PingContext(ctx)
+}
+
+func (db *DB) QueueDepth() int {
+	return len(db.queue)
 }
