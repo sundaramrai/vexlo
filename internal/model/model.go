@@ -2,18 +2,6 @@ package model
 
 import "time"
 
-type RoutingRule struct {
-	ID               string    `json:"id"`
-	SessionID        string    `json:"session_id"`
-	MatchMethod      string    `json:"match_method"`
-	MatchPath        string    `json:"match_path"`
-	MatchHeaderKey   string    `json:"match_header_key"`
-	MatchHeaderValue string    `json:"match_header_value"`
-	TargetPort       int       `json:"target_port"`
-	Priority         int       `json:"priority"`
-	CreatedAt        time.Time `json:"created_at,omitempty"`
-}
-
 type Session struct {
 	ID             string     `json:"id"`
 	Subdomain      string     `json:"subdomain"`
@@ -50,7 +38,6 @@ type CapturedReplay struct {
 	ResponseStatus int       `json:"response_status"`
 	ResponseHeader string    `json:"response_headers"`
 	ResponseBody   string    `json:"response_body"`
-	DiffResult     string    `json:"diff_result"`
 	DurationMS     int64     `json:"duration_ms"`
 	CreatedAt      time.Time `json:"created_at"`
 }
