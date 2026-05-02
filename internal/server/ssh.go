@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,14 +27,18 @@ type sshConnState struct {
 }
 
 func (s *Server) acceptSSH(ctxDone interface{ Done() <-chan struct{} }) {
-	signer, err := sshServerSigner()
+	signer, err := loadOrCreateSSHSigner(s.cfg.SSHHostKeyPath)
 	if err != nil {
 		slog.Error("ssh signer error", "error", err)
 		return
 	}
 	cfg := &ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			return &ssh.Permissions{Extensions: map[string]string{"pubkey": string(ssh.MarshalAuthorizedKey(key))}}, nil
+			serialized := string(ssh.MarshalAuthorizedKey(key))
+			if !s.manager.isAuthorizedSSHPublicKey(serialized) {
+				return nil, fmt.Errorf("unauthorized ssh key")
+			}
+			return &ssh.Permissions{Extensions: map[string]string{"pubkey": serialized}}, nil
 		},
 	}
 	cfg.AddHostKey(signer)
@@ -269,14 +271,6 @@ func (s *Server) handleSSHCustomTunnel(state *sshConnState, newChannel ssh.NewCh
 	state.session = registered
 	state.tunnel = tunnel
 	_ = protocol.Encode(channel, protocol.TypeRegistered, registered)
-}
-
-func sshServerSigner() (ssh.Signer, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.NewSignerFromKey(key)
 }
 
 type sshServerChannelConn struct {
