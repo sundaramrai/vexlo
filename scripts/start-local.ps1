@@ -6,7 +6,8 @@ param(
     [string]$BaseDomain = "localhost",
     [string]$HostUrl = "http://localhost:8080",
     [switch]$StartExampleApp,
-    [string]$ExampleAppCommand = "python -m http.server",
+    [string]$ExampleAppCommand = "py -m http.server",
+    [string]$ExampleAppDirectory = "examples\http-server",
     [switch]$RestartServer,
     [switch]$CheckBinaries = $true,
     [switch]$Headless,
@@ -30,14 +31,14 @@ function Get-PortFromAddr {
 
 function Test-TcpPortListening {
     param(
-        [string]$Host,
+        [string]$TargetHost,
         [int]$Port,
         [int]$TimeoutMs = 300
     )
 
     $client = New-Object System.Net.Sockets.TcpClient
     try {
-        $result = $client.BeginConnect($Host, $Port, $null, $null)
+        $result = $client.BeginConnect($TargetHost, $Port, $null, $null)
         if (-not $result.AsyncWaitHandle.WaitOne($TimeoutMs)) {
             return $false
         }
@@ -87,6 +88,21 @@ function Ensure-Binaries {
     return $missing
 }
 
+function Test-CommandRunnable {
+    param(
+        [string]$Command,
+        [string[]]$Arguments = @()
+    )
+
+    try {
+        & $Command @Arguments 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+}
+
 $serverCmd = @(
     "go run ./cmd/server",
     "--http-addr $ServerHttpAddr",
@@ -106,16 +122,21 @@ $clientCmd = @(
 Write-Host "Starting Vexlo local stack..." -ForegroundColor Cyan
 
 $tcpPort = Get-PortFromAddr -Addr $ServerTcpAddr
-$serverAlreadyRunning = Test-TcpPortListening -Host "127.0.0.1" -Port $tcpPort
+$serverAlreadyRunning = Test-TcpPortListening -TargetHost "127.0.0.1" -Port $tcpPort
+$windowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
 
 # Binary checks
 if ($CheckBinaries) {
     $requiredBinaries = @('go', 'powershell')
-    if ($StartExampleApp) { $requiredBinaries += 'python' }
     $missing = Ensure-Binaries -Bins $requiredBinaries
     if ($missing.Count -gt 0) {
         Write-Host "Missing required binaries: $($missing -join ', ')" -ForegroundColor Red
         Write-Host "Please install them or adjust PATH before running the script." -ForegroundColor Red
+        exit 1
+    }
+
+    if ($StartExampleApp -and $ExampleAppCommand -eq 'py -m http.server' -and -not (Test-CommandRunnable -Command 'py' -Arguments @('--version'))) {
+        Write-Host 'The Windows Python launcher is not runnable. Install Python or pass -ExampleAppCommand with a command for your local app.' -ForegroundColor Red
         exit 1
     }
 }
@@ -133,6 +154,10 @@ if ($serverAlreadyRunning -and $RestartServer) {
 }
 
 if ($StartExampleApp) {
+    $appWorkingDirectory = Join-Path $repoRoot $ExampleAppDirectory
+    if (-not (Test-Path -LiteralPath $appWorkingDirectory -PathType Container)) {
+        throw "Example app directory does not exist: $appWorkingDirectory"
+    }
     $appCmd = "$ExampleAppCommand $AppPort"
     $pw = (Get-Command powershell -ErrorAction SilentlyContinue).Source
     $appArgs = @()
@@ -145,7 +170,7 @@ if ($StartExampleApp) {
         $appOut = Join-Path $LogDir "app-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
         $appErr = Join-Path $LogDir "app-$(Get-Date -Format 'yyyyMMdd-HHmmss').err.log"
     }
-    $startSplat = @{ FilePath = $pw; WorkingDirectory = $repoRoot; ArgumentList = $appArgs; WindowStyle = (if ($Headless) { 'Hidden' } else { 'Normal' }) }
+    $startSplat = @{ FilePath = $pw; WorkingDirectory = $appWorkingDirectory; ArgumentList = $appArgs; WindowStyle = $windowStyle }
     if ($appOut) { $startSplat.RedirectStandardOutput = $appOut; $startSplat.RedirectStandardError = $appErr }
     Start-Process @startSplat | Out-Null
     Write-Host "Started example app terminal on port $AppPort" -ForegroundColor Green
@@ -165,7 +190,7 @@ else {
         $serverOut = Join-Path $LogDir "server-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
         $serverErr = Join-Path $LogDir "server-$(Get-Date -Format 'yyyyMMdd-HHmmss').err.log"
     }
-    $startSplat = @{ FilePath = $pw; WorkingDirectory = $repoRoot; ArgumentList = $serverArgs; WindowStyle = (if ($Headless) { 'Hidden' } else { 'Normal' }) }
+    $startSplat = @{ FilePath = $pw; WorkingDirectory = $repoRoot; ArgumentList = $serverArgs; WindowStyle = $windowStyle }
     if ($serverOut) { $startSplat.RedirectStandardOutput = $serverOut; $startSplat.RedirectStandardError = $serverErr }
     Start-Process @startSplat | Out-Null
     Start-Sleep -Seconds 1
@@ -182,7 +207,7 @@ if ($LogDir) {
     $clientOut = Join-Path $LogDir "client-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
     $clientErr = Join-Path $LogDir "client-$(Get-Date -Format 'yyyyMMdd-HHmmss').err.log"
 }
-$startSplat = @{ FilePath = $pw; WorkingDirectory = $repoRoot; ArgumentList = $clientArgs; WindowStyle = (if ($Headless) { 'Hidden' } else { 'Normal' }) }
+$startSplat = @{ FilePath = $pw; WorkingDirectory = $repoRoot; ArgumentList = $clientArgs; WindowStyle = $windowStyle }
 if ($clientOut) { $startSplat.RedirectStandardOutput = $clientOut; $startSplat.RedirectStandardError = $clientErr }
 Start-Process @startSplat | Out-Null
 

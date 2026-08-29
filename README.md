@@ -88,6 +88,9 @@ The client prints:
 - Public tunnel path, for local development this is `http://localhost:8080/t/<subdomain>`
 - Dashboard URL with the session token baked in
 
+For a safe Windows-only demo, use `./scripts/start-local.ps1 -StartExampleApp`.
+It serves only `examples/http-server`, not the repository root.
+
 ### 5. Use the dashboard
 
 Open the printed dashboard URL. From there you can:
