@@ -29,7 +29,8 @@ sudo ./deploy/scripts/install_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
-  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz
+  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz \
+  https://github.com/yourorg/vexlo/releases/latest/download/SHA256SUMS.txt
 ```
 
 Then:
@@ -51,11 +52,17 @@ At minimum, replace:
 - `VEXLO_ADMIN_PASS`
 - `VEXLO_ADMIN_USER` if you do not want the default `admin`
 
+For dynamic public tunnel subdomains, use a wildcard certificate obtained
+through DNS-01. Add `--tls-cert /path/to/fullchain.pem --tls-key
+/path/to/privkey.pem` to the systemd `ExecStart` (or an override) before
+starting Vexlo. Do not set only one of the two flags.
+
 ## Minimal production launch shape
 
 The installed `systemd` unit runs the server with:
 
 - TLS enabled on `:80` and `:443`
+- TLS required for the public tunnel listener on `:9000`; clients must pass `--tls --server-name "$VEXLO_BASE_DOMAIN"`
 - TCP tunnel listener on `:9000`
 - explicit registration token and admin credentials from `/etc/vexlo/vexlo.env`
 - persistent DB and ACME cache paths

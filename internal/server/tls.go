@@ -13,12 +13,7 @@ import (
 )
 
 func (s *Server) serveTLS(ctx context.Context) error {
-	manager := &autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		Cache:      autocert.DirCache(s.cfg.ACMECache),
-		Email:      s.cfg.ACMEEmail,
-		HostPolicy: s.autocertHostPolicy(),
-	}
+	manager := s.autocertManager()
 
 	redirectMux := http.NewServeMux()
 	redirectMux.Handle("/", manager.HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,16 +40,44 @@ func (s *Server) serveTLS(ctx context.Context) error {
 	}()
 
 	s.httpSrv.Addr = s.cfg.HTTPSAddr
-	s.httpSrv.TLSConfig = &tls.Config{
-		MinVersion:     tls.VersionTLS12,
-		GetCertificate: manager.GetCertificate,
-		NextProtos:     []string{acme.ALPNProto, "h2", "http/1.1"},
+	tlsConfig, err := s.tunnelTLSConfig()
+	if err != nil {
+		return err
 	}
-	err := s.httpSrv.ListenAndServeTLS("", "")
+	tlsConfig.NextProtos = []string{acme.ALPNProto, "h2", "http/1.1"}
+	if s.cfg.TLSCertFile == "" {
+		tlsConfig.GetCertificate = manager.GetCertificate
+	}
+	s.httpSrv.TLSConfig = tlsConfig
+	err = s.httpSrv.ListenAndServeTLS("", "")
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) autocertManager() *autocert.Manager {
+	return &autocert.Manager{Prompt: autocert.AcceptTOS, Cache: autocert.DirCache(s.cfg.ACMECache), Email: s.cfg.ACMEEmail, HostPolicy: s.autocertHostPolicy()}
+}
+
+func (s *Server) tunnelTLSConfig() (*tls.Config, error) {
+	config := &tls.Config{MinVersion: tls.VersionTLS12}
+	if s.cfg.TLSCertFile != "" || s.cfg.TLSKeyFile != "" {
+		if s.cfg.TLSCertFile == "" || s.cfg.TLSKeyFile == "" {
+			return nil, errors.New("both --tls-cert and --tls-key are required")
+		}
+		cert, err := tls.LoadX509KeyPair(s.cfg.TLSCertFile, s.cfg.TLSKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		config.Certificates = []tls.Certificate{cert}
+		return config, nil
+	}
+	if !s.cfg.EnableTLS {
+		return nil, errors.New("--tunnel-tls requires --tls or a --tls-cert/--tls-key pair")
+	}
+	config.GetCertificate = s.autocertManager().GetCertificate
+	return config, nil
 }
 
 func (s *Server) autocertHostPolicy() autocert.HostPolicy {

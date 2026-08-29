@@ -23,7 +23,7 @@ const (
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.withRequestLogging("root", s.withAdminAuth(s.handleRoot)))
+	mux.HandleFunc("/", s.withRequestLogging("root", s.handleRoot))
 	mux.HandleFunc("/assets/dashboard.css", s.withRequestLogging("dashboard_css", s.withAdminAuth(dashboard.ServeCSS)))
 	mux.HandleFunc("/assets/dashboard.js", s.withRequestLogging("dashboard_js", s.withAdminAuth(dashboard.ServeJS)))
 	mux.HandleFunc("/healthz", s.withRequestLogging("healthz", s.handleHealthz))
@@ -41,8 +41,11 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		s.handlePublicRequest(w, r, tunnel)
 		return
 	}
+	if !s.adminAuthorized(w, r) {
+		return
+	}
 	if token := r.URL.Query().Get("token"); token != "" {
-		http.SetCookie(w, &http.Cookie{Name: "vexlo_token", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		http.SetCookie(w, &http.Cookie{Name: "vexlo_token", Value: token, Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode})
 		redirectURL := *r.URL
 		query := redirectURL.Query()
 		query.Del("token")
@@ -329,7 +332,7 @@ func (s *Server) authorize(r *http.Request) (string, error) {
 			token = cookie.Value
 		}
 	}
-	if token == "" || token != session.AuthToken {
+	if token == "" || !subtleConstantTimeCompare(token, session.AuthToken) {
 		return "", errors.New("unauthorized")
 	}
 	return sessionID, nil

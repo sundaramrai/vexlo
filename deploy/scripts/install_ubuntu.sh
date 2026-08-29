@@ -7,7 +7,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: $0 <base-domain> <host-url> <acme-email> [binary-url]"
+  echo "Usage: $0 <base-domain> <host-url> <acme-email> [binary-url] [checksums-url]"
   echo "Example: $0 vexlo.example.com https://vexlo.example.com you@example.com https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz"
   exit 1
 fi
@@ -16,6 +16,7 @@ BASE_DOMAIN="$1"
 HOST_URL="$2"
 ACME_EMAIL="$3"
 BINARY_URL="${4:-}"
+CHECKSUMS_URL="${5:-}"
 
 apt-get update
 apt-get install -y curl ca-certificates ufw cron tar
@@ -29,7 +30,24 @@ chmod 0750 /etc/vexlo
 if [[ -n "$BINARY_URL" ]]; then
   tmp="$(mktemp)"
   curl -fsSL "$BINARY_URL" -o "$tmp"
+	if [[ -z "$CHECKSUMS_URL" ]]; then
+	  CHECKSUMS_URL="${BINARY_URL%/*}/SHA256SUMS.txt"
+	fi
+	checksums="$(mktemp)"
+	curl -fsSL "$CHECKSUMS_URL" -o "$checksums"
+	binary_name="${BINARY_URL##*/}"
+	expected_sha="$(awk -v name="$binary_name" '$2 == name { print $1; exit }' "$checksums")"
+	if [[ -z "$expected_sha" ]]; then
+	  echo "Checksum for ${binary_name} was not found in ${CHECKSUMS_URL}" >&2
+	  exit 1
+	fi
+	echo "${expected_sha}  ${tmp}" | sha256sum -c -
+	rm -f "$checksums"
   if [[ "$BINARY_URL" == *.tar.gz ]]; then
+	  if tar -tzf "$tmp" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+	    echo "Refusing archive with unsafe paths" >&2
+	    exit 1
+	  fi
     extracted_name="$(tar -tzf "$tmp" | head -n1)"
     tar -xzf "$tmp" -C /opt/vexlo
     mv "/opt/vexlo/${extracted_name}" /opt/vexlo/vexlo-server

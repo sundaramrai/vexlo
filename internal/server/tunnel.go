@@ -174,6 +174,10 @@ func (m *TunnelManager) readLoop(t *Tunnel) {
 
 func (m *TunnelManager) removeTunnel(t *Tunnel) {
 	m.mu.Lock()
+	if m.bySession[t.session.ID] != t {
+		m.mu.Unlock()
+		return
+	}
 	delete(m.tunnels, t.Subdomain)
 	delete(m.bySession, t.session.ID)
 	m.mu.Unlock()
@@ -191,17 +195,18 @@ func (m *TunnelManager) closeTunnel(t *Tunnel) {
 }
 
 func (m *TunnelManager) FindByHost(host string) *Tunnel {
-	host = strings.Split(host, ":")[0]
-	if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+	host = strings.ToLower(stripPort(strings.TrimSuffix(host, ".")))
+	base := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(m.cfg.BaseDomain), "."))
+	if base == "" || host == base || !strings.HasSuffix(host, "."+base) {
 		return nil
 	}
-	parts := strings.Split(host, ".")
-	if len(parts) == 0 {
+	subdomain := strings.TrimSuffix(host, "."+base)
+	if subdomain == "" || strings.Contains(subdomain, ".") {
 		return nil
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.tunnels[parts[0]]
+	return m.tunnels[subdomain]
 }
 
 func (m *TunnelManager) FindBySubdomain(sub string) *Tunnel {
@@ -244,6 +249,11 @@ func (m *TunnelManager) Forward(ctx context.Context, tunnel *Tunnel, r *http.Req
 	tunnel.mu.Lock()
 	tunnel.pending[reqID] = ch
 	tunnel.mu.Unlock()
+	defer func() {
+		tunnel.mu.Lock()
+		delete(tunnel.pending, reqID)
+		tunnel.mu.Unlock()
+	}()
 	if err := tunnel.send(protocol.TypeForwardRequest, fwd); err != nil {
 		return nil, err
 	}

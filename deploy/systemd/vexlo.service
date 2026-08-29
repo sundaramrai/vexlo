@@ -11,6 +11,7 @@ WorkingDirectory=/opt/vexlo
 EnvironmentFile=/etc/vexlo/vexlo.env
 ExecStart=/opt/vexlo/vexlo-server \
   --tls \
+  --tunnel-tls \
   --http-addr :80 \
   --https-addr :443 \
   --tcp-addr :9000 \

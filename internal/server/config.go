@@ -10,8 +10,11 @@ type Config struct {
 	DBPath              string
 	HostURL             string
 	EnableTLS           bool
+	EnableTunnelTLS     bool
 	ACMEEmail           string
 	ACMECache           string
+	TLSCertFile         string
+	TLSKeyFile          string
 	CaptureBodyLimit    int
 	MaxRequestBodyBytes int64
 	MaxAPIBodyBytes     int64

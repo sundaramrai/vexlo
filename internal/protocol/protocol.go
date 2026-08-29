@@ -4,10 +4,16 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
+
+// MaxMessageSize bounds a single tunnel frame, including JSON/base64 overhead.
+// It is deliberately independent of HTTP limits: tunnel peers are remote and
+// must never be able to dictate an allocation size to the server.
+const MaxMessageSize = 8 * 1024 * 1024
 
 const (
 	TypeRegister        = "register"
@@ -91,6 +97,9 @@ func Decode(r *bufio.Reader, out any) (string, error) {
 		return "", err
 	}
 	size := binary.BigEndian.Uint32(lenBuf[:])
+	if size == 0 || size > MaxMessageSize {
+		return "", fmt.Errorf("invalid tunnel frame size %d", size)
+	}
 	buf := make([]byte, size)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err

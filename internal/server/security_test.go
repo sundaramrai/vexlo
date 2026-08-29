@@ -122,3 +122,25 @@ func TestHandleRootStripsTokenFromRedirectURL(t *testing.T) {
 		t.Fatal("expected auth cookie to be set")
 	}
 }
+
+func TestPublicTunnelBypassesDashboardAdminAuthOnlyForConfiguredDomain(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.BaseDomain = "vexlo.example.com"
+	cfg.AdminUsername = "admin"
+	cfg.AdminPassword = "secret"
+	manager, db := newTestManager(t, cfg)
+	tunnel := newTunnel(nil, Session{ID: "session-1", Subdomain: "abc", LocalPort: 3000})
+	manager.installTunnel(tunnel)
+	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
+
+	if got := manager.FindByHost("abc.other.example"); got != nil {
+		t.Fatal("host outside base domain selected a tunnel")
+	}
+	req := httptest.NewRequest(http.MethodGet, "http://vexlo.example.com/", nil)
+	req.Host = "vexlo.example.com"
+	rec := httptest.NewRecorder()
+	server.handleRoot(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("dashboard expected admin auth, got %d", rec.Code)
+	}
+}

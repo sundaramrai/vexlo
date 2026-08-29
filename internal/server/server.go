@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"net/http"
@@ -57,6 +58,14 @@ func (s *Server) Start(ctx context.Context) error {
 	tcpLn, err := net.Listen("tcp", s.cfg.TCPAddr)
 	if err != nil {
 		return err
+	}
+	if s.cfg.EnableTunnelTLS {
+		tlsConfig, configErr := s.tunnelTLSConfig()
+		if configErr != nil {
+			_ = tcpLn.Close()
+			return configErr
+		}
+		tcpLn = tls.NewListener(tcpLn, tlsConfig)
 	}
 	s.tcpLn = tcpLn
 	go s.acceptBinary(ctx)
