@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- pin the CI vulnerability checker to a Go 1.23-compatible version
+- update release and deployment documentation to match the current TLS and
+  secret-handling design
+
+## v0.1.3
+
+- load registration and dashboard credentials from the protected service
+  environment instead of exposing them in process arguments
+
+## v0.1.2
+
+- require TLS for the production tunnel transport
+- support separate dashboard and wildcard TLS certificate pairs
+- sync renewed certificates to files readable by the unprivileged service
+- add safer Windows local-demo startup behavior
+
 ## v0.1.1
 
 Release maintenance update.

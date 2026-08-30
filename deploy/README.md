@@ -30,8 +30,8 @@ sudo ./deploy/scripts/install_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
-  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz \
-  https://github.com/yourorg/vexlo/releases/latest/download/SHA256SUMS.txt
+  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz \
+  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt
 ```
 
 Then:
@@ -98,6 +98,11 @@ Equivalent manual command:
 ```bash
 /opt/vexlo/vexlo-server \
   --tls \
+  --tunnel-tls \
+  --tls-cert "$VEXLO_TLS_CERT" \
+  --tls-key "$VEXLO_TLS_KEY" \
+  --tls-extra-cert "$VEXLO_TLS_EXTRA_CERT" \
+  --tls-extra-key "$VEXLO_TLS_EXTRA_KEY" \
   --http-addr :80 \
   --https-addr :443 \
   --tcp-addr :9000 \

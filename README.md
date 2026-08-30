@@ -173,16 +173,22 @@ go build ./...
 ## Production server example
 
 ```bash
+export VEXLO_REGISTRATION_TOKEN=replace-with-strong-secret
+export VEXLO_ADMIN_USER=vexlo-admin
+export VEXLO_ADMIN_PASS=replace-with-strong-password
+
 ./vexlo-server \
   --tls \
-
   --tunnel-tls \
+  --tls-cert /etc/vexlo/certs/dashboard-fullchain.pem \
+  --tls-key /etc/vexlo/certs/dashboard-privkey.pem \
+  --tls-extra-cert /etc/vexlo/certs/wildcard-fullchain.pem \
+  --tls-extra-key /etc/vexlo/certs/wildcard-privkey.pem \
   --http-addr :80 \
   --https-addr :443 \
   --tcp-addr :9000 \
   --base-domain vexlo.example.com \
   --host-url https://vexlo.example.com \
-  --registration-token replace-with-strong-secret \
   --capture-body-limit 262144 \
   --retention-period 168h \
   --acme-email you@example.com \
@@ -205,7 +211,8 @@ sudo ./deploy/scripts/install_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
-  https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz
+  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz \
+  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt
 sudo systemctl start vexlo
 sudo journalctl -u vexlo -f
 ```

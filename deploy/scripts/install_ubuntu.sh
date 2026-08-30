@@ -8,7 +8,7 @@ fi
 
 if [[ $# -lt 3 ]]; then
   echo "Usage: $0 <base-domain> <host-url> <acme-email> [binary-url] [checksums-url]"
-  echo "Example: $0 vexlo.example.com https://vexlo.example.com you@example.com https://github.com/yourorg/vexlo/releases/latest/download/vexlo-server-linux-amd64.tar.gz"
+  echo "Example: $0 vexlo.example.com https://vexlo.example.com you@example.com https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt"
   exit 1
 fi
 

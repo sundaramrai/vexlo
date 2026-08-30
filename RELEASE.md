@@ -24,11 +24,11 @@ go build ./...
 
 ## Tagging A Release
 
-Create and push a semantic version tag:
+Create and push the release version as a semantic version tag:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 That triggers [.github/workflows/release.yml](.github/workflows/release.yml), which publishes:
@@ -47,7 +47,7 @@ That triggers [.github/workflows/release.yml](.github/workflows/release.yml), wh
 Title:
 
 ```text
-Vexlo v0.1.0
+Vexlo vX.Y.Z
 ```
 
 Summary:
