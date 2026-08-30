@@ -34,10 +34,10 @@ func main() {
 	flag.DurationVar(&cfg.ReadTimeout, "read-timeout", 15*time.Second, "HTTP server read timeout")
 	flag.DurationVar(&cfg.WriteTimeout, "write-timeout", 60*time.Second, "HTTP server write timeout")
 	flag.DurationVar(&cfg.IdleTimeout, "idle-timeout", 60*time.Second, "HTTP server idle timeout")
-	flag.StringVar(&cfg.RegistrationToken, "registration-token", "", "shared token required for tunnel registration")
+	flag.StringVar(&cfg.RegistrationToken, "registration-token", os.Getenv("VEXLO_REGISTRATION_TOKEN"), "shared token required for tunnel registration")
 	flag.DurationVar(&cfg.RetentionPeriod, "retention-period", 7*24*time.Hour, "how long ended sessions and captured traffic are retained; 0 disables pruning")
-	flag.StringVar(&cfg.AdminUsername, "admin-user", "", "optional HTTP basic auth username for dashboard and management APIs")
-	flag.StringVar(&cfg.AdminPassword, "admin-pass", "", "optional HTTP basic auth password for dashboard and management APIs")
+	flag.StringVar(&cfg.AdminUsername, "admin-user", os.Getenv("VEXLO_ADMIN_USER"), "optional HTTP basic auth username for dashboard and management APIs")
+	flag.StringVar(&cfg.AdminPassword, "admin-pass", os.Getenv("VEXLO_ADMIN_PASS"), "optional HTTP basic auth password for dashboard and management APIs")
 	flag.Parse()
 
 	srv, err := server.New(cfg)

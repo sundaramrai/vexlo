@@ -53,6 +53,10 @@ At minimum, replace:
 - `VEXLO_ADMIN_PASS`
 - `VEXLO_ADMIN_USER` if you do not want the default `admin`
 
+The systemd unit reads these values from its protected environment file; it
+does not place the registration token or dashboard credentials in the server
+process command line.
+
 For dynamic public tunnel subdomains, use a wildcard certificate obtained
 through DNS-01. Set `VEXLO_TLS_CERT` and `VEXLO_TLS_KEY` to a certificate for
 the dashboard hostname. Set `VEXLO_TLS_EXTRA_CERT` and `VEXLO_TLS_EXTRA_KEY`

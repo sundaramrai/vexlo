@@ -82,6 +82,8 @@ VEXLO_READ_TIMEOUT=15s
 VEXLO_WRITE_TIMEOUT=60s
 VEXLO_IDLE_TIMEOUT=60s
 EOF
+chown root:vexlo /etc/vexlo/vexlo.env
+chmod 0640 /etc/vexlo/vexlo.env
 
 cp "$(dirname "$0")/../systemd/vexlo.service" /etc/systemd/system/vexlo.service
 install -m 0755 "$(dirname "$0")/backup_vexlo.sh" /opt/vexlo/backup_vexlo.sh
