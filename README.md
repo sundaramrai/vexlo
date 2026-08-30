@@ -35,7 +35,7 @@ internal/protocol   Framed transport protocol
 
 ### 1. Prerequisites
 
-- Go 1.23 or newer
+- Go 1.25.13 or newer
 
 ### 2. Run the server
 

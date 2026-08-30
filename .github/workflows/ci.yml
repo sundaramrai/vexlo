@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.25.13"
 
       - name: Check formatting
         run: test -z "$(gofmt -l cmd internal)"
@@ -49,7 +49,7 @@ jobs:
         run: go vet ./...
 
       - name: Check reachable dependency vulnerabilities
-        # Keep this compatible with the Go 1.23 toolchain configured above.
+        # Pin this for reproducible scans with the Go 1.25 toolchain above.
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
       - name: Build

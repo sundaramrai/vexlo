@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- pin the CI vulnerability checker to a Go 1.23-compatible version
+- upgrade the Go toolchain to 1.25.13 to remediate reachable standard-library
+  vulnerabilities
+- upgrade `golang.org/x/crypto`, `golang.org/x/net`, `golang.org/x/sys`, and
+  `golang.org/x/text` to patched versions
+- pin the CI vulnerability checker for reproducible scans
 - update release and deployment documentation to match the current TLS and
   secret-handling design
 
