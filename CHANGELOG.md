@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.4
 
 - upgrade the Go toolchain to 1.25.13 to remediate reachable standard-library
   vulnerabilities
