@@ -26,6 +26,8 @@ func main() {
 	flag.StringVar(&cfg.ACMECache, "acme-cache", "acme-cache", "directory used to cache Let's Encrypt certificates")
 	flag.StringVar(&cfg.TLSCertFile, "tls-cert", "", "PEM certificate for HTTPS and tunnel TLS")
 	flag.StringVar(&cfg.TLSKeyFile, "tls-key", "", "PEM private key paired with --tls-cert")
+	flag.StringVar(&cfg.TLSExtraCertFile, "tls-extra-cert", "", "optional second PEM certificate for HTTPS and tunnel TLS")
+	flag.StringVar(&cfg.TLSExtraKeyFile, "tls-extra-key", "", "PEM private key paired with --tls-extra-cert")
 	flag.IntVar(&cfg.CaptureBodyLimit, "capture-body-limit", 256*1024, "max request/response body bytes to retain for dashboard storage; 0 disables the limit")
 	flag.Int64Var(&cfg.MaxRequestBodyBytes, "max-request-body-bytes", 2*1024*1024, "max inbound tunneled request body size in bytes")
 	flag.Int64Var(&cfg.MaxAPIBodyBytes, "max-api-body-bytes", 512*1024, "max API request body size in bytes")

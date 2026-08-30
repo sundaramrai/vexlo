@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -62,15 +63,29 @@ func (s *Server) autocertManager() *autocert.Manager {
 
 func (s *Server) tunnelTLSConfig() (*tls.Config, error) {
 	config := &tls.Config{MinVersion: tls.VersionTLS12}
-	if s.cfg.TLSCertFile != "" || s.cfg.TLSKeyFile != "" {
-		if s.cfg.TLSCertFile == "" || s.cfg.TLSKeyFile == "" {
-			return nil, errors.New("both --tls-cert and --tls-key are required")
+	pairs := []struct {
+		certFile string
+		keyFile  string
+		certFlag string
+		keyFlag  string
+	}{
+		{s.cfg.TLSCertFile, s.cfg.TLSKeyFile, "--tls-cert", "--tls-key"},
+		{s.cfg.TLSExtraCertFile, s.cfg.TLSExtraKeyFile, "--tls-extra-cert", "--tls-extra-key"},
+	}
+	for _, pair := range pairs {
+		if pair.certFile == "" && pair.keyFile == "" {
+			continue
 		}
-		cert, err := tls.LoadX509KeyPair(s.cfg.TLSCertFile, s.cfg.TLSKeyFile)
+		if pair.certFile == "" || pair.keyFile == "" {
+			return nil, fmt.Errorf("both %s and %s are required", pair.certFlag, pair.keyFlag)
+		}
+		cert, err := tls.LoadX509KeyPair(pair.certFile, pair.keyFile)
 		if err != nil {
 			return nil, err
 		}
-		config.Certificates = []tls.Certificate{cert}
+		config.Certificates = append(config.Certificates, cert)
+	}
+	if len(config.Certificates) > 0 {
 		return config, nil
 	}
 	if !s.cfg.EnableTLS {

@@ -53,9 +53,12 @@ At minimum, replace:
 - `VEXLO_ADMIN_USER` if you do not want the default `admin`
 
 For dynamic public tunnel subdomains, use a wildcard certificate obtained
-through DNS-01. Add `--tls-cert /path/to/fullchain.pem --tls-key
-/path/to/privkey.pem` to the systemd `ExecStart` (or an override) before
-starting Vexlo. Do not set only one of the two flags.
+through DNS-01. Set `VEXLO_TLS_CERT` and `VEXLO_TLS_KEY` to a certificate for
+the dashboard hostname. Set `VEXLO_TLS_EXTRA_CERT` and `VEXLO_TLS_EXTRA_KEY`
+to a wildcard certificate when the DNS provider cannot validate the dashboard
+hostname and wildcard in one certificate request (DuckDNS is one such provider).
+Each certificate/key pair must be complete. Vexlo selects the right certificate
+from SNI for HTTPS and tunnel TLS.
 
 ## Minimal production launch shape
 

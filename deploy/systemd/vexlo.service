@@ -12,6 +12,10 @@ EnvironmentFile=/etc/vexlo/vexlo.env
 ExecStart=/opt/vexlo/vexlo-server \
   --tls \
   --tunnel-tls \
+  --tls-cert=${VEXLO_TLS_CERT} \
+  --tls-key=${VEXLO_TLS_KEY} \
+  --tls-extra-cert=${VEXLO_TLS_EXTRA_CERT} \
+  --tls-extra-key=${VEXLO_TLS_EXTRA_KEY} \
   --http-addr :80 \
   --https-addr :443 \
   --tcp-addr :9000 \

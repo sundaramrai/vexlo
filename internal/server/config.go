@@ -15,6 +15,8 @@ type Config struct {
 	ACMECache           string
 	TLSCertFile         string
 	TLSKeyFile          string
+	TLSExtraCertFile    string
+	TLSExtraKeyFile     string
 	CaptureBodyLimit    int
 	MaxRequestBodyBytes int64
 	MaxAPIBodyBytes     int64

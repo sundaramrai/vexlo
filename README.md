@@ -161,7 +161,7 @@ go build ./...
 - For real public subdomains, run the server behind a DNS name and pass `--base-domain your-domain.example`.
 - For TLS, start the server with `--tls`, expose ports `80` and `443`, and point your base domain plus subdomains at the VPS.
 - Public deployments must also use `--tunnel-tls` and clients must use `--tls --server-name your-domain.example`; otherwise the binary tunnel is plaintext.
-- Dynamic tunnel subdomains need a wildcard certificate (`--tls-cert` / `--tls-key`) from a DNS-01 capable issuer. HTTP-01 autocert is appropriate for a stable dashboard hostname, not unlimited generated subdomains.
+- Dynamic tunnel subdomains need a wildcard certificate from a DNS-01 capable issuer. Use `--tls-cert` / `--tls-key` for the dashboard certificate and, when the DNS provider cannot validate both names in one request, `--tls-extra-cert` / `--tls-extra-key` for the wildcard certificate. HTTP-01 autocert is appropriate for a stable dashboard hostname, not unlimited generated subdomains.
 - The current local-first flow uses `/t/<subdomain>` when `--base-domain localhost`.
 - For production, set a non-empty `--registration-token` and distribute it only to trusted clients.
 - The dashboard token is now moved into an `HttpOnly` cookie and stripped from the browser address bar on first load.
