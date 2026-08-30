@@ -20,6 +20,7 @@ This directory contains production deployment artifacts for running Vexlo on a L
 - Database: `/var/lib/vexlo/vexlo.db`
 - ACME cache: `/var/lib/vexlo/acme-cache`
 - Backup helper: `/opt/vexlo/backup_vexlo.sh`
+- Certificate sync helper: `/opt/vexlo/sync_certificates.sh`
 
 ## Fast path
 
@@ -59,6 +60,23 @@ to a wildcard certificate when the DNS provider cannot validate the dashboard
 hostname and wildcard in one certificate request (DuckDNS is one such provider).
 Each certificate/key pair must be complete. Vexlo selects the right certificate
 from SNI for HTTPS and tunnel TLS.
+
+The Vexlo service runs as an unprivileged user, so it reads root-synced copies
+from `/etc/vexlo/certs`, rather than Let’s Encrypt's root-only directories.
+After obtaining or renewing the `vexlo-dashboard` and `vexlo-wildcard`
+certificates, run:
+
+```bash
+sudo /opt/vexlo/sync_certificates.sh
+```
+
+Register that same helper as Certbot's deploy hook so a successful renewal
+restarts Vexlo with the updated certificates:
+
+```bash
+sudo install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
+sudo ln -sf /opt/vexlo/sync_certificates.sh /etc/letsencrypt/renewal-hooks/deploy/vexlo-certificates
+```
 
 ## Minimal production launch shape
 

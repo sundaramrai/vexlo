@@ -23,9 +23,12 @@ apt-get install -y curl ca-certificates ufw cron tar
 
 id -u vexlo >/dev/null 2>&1 || useradd --system --home /opt/vexlo --shell /usr/sbin/nologin vexlo
 
-mkdir -p /opt/vexlo /etc/vexlo /var/lib/vexlo/acme-cache
-chown -R vexlo:vexlo /opt/vexlo /etc/vexlo /var/lib/vexlo
+mkdir -p /opt/vexlo /etc/vexlo/certs /var/lib/vexlo/acme-cache
+chown -R vexlo:vexlo /opt/vexlo /var/lib/vexlo
+chown vexlo:vexlo /etc/vexlo
 chmod 0750 /etc/vexlo
+chown root:vexlo /etc/vexlo/certs
+chmod 0750 /etc/vexlo/certs
 
 if [[ -n "$BINARY_URL" ]]; then
   tmp="$(mktemp)"
@@ -64,6 +67,10 @@ cat >/etc/vexlo/vexlo.env <<EOF
 VEXLO_BASE_DOMAIN=${BASE_DOMAIN}
 VEXLO_HOST_URL=${HOST_URL}
 VEXLO_ACME_EMAIL=${ACME_EMAIL}
+VEXLO_TLS_CERT=/etc/vexlo/certs/dashboard-fullchain.pem
+VEXLO_TLS_KEY=/etc/vexlo/certs/dashboard-privkey.pem
+VEXLO_TLS_EXTRA_CERT=/etc/vexlo/certs/wildcard-fullchain.pem
+VEXLO_TLS_EXTRA_KEY=/etc/vexlo/certs/wildcard-privkey.pem
 VEXLO_REGISTRATION_TOKEN=replace-with-long-random-token
 VEXLO_ADMIN_USER=admin
 VEXLO_ADMIN_PASS=replace-with-strong-password
@@ -78,6 +85,7 @@ EOF
 
 cp "$(dirname "$0")/../systemd/vexlo.service" /etc/systemd/system/vexlo.service
 install -m 0755 "$(dirname "$0")/backup_vexlo.sh" /opt/vexlo/backup_vexlo.sh
+install -m 0750 -o root -g root "$(dirname "$0")/sync_certificates.sh" /opt/vexlo/sync_certificates.sh
 
 ufw allow 80/tcp
 ufw allow 443/tcp
