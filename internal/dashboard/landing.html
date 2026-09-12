@@ -1,59 +1,69 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Vexlo is a self-hosted tunnel for exposing local applications and inspecting HTTP traffic."
+    />
+    <title>Vexlo — secure local tunnels</title>
+    <link rel="stylesheet" href="/assets/landing.css" />
+  </head>
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Vexlo is a self-hosted tunnel for exposing local applications and inspecting HTTP traffic." />
-  <title>Vexlo — secure local tunnels</title>
-  <style>
-    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #090b0d; color: #edf3eb; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 80% 0%, #123126 0%, transparent 34rem), #090b0d; }
-    main { width: min(72rem, calc(100% - 3rem)); margin: 0 auto; padding: 3rem 0 4rem; }
-    nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-    .brand { color: #57ef96; font-size: 1.15rem; font-weight: 800; text-decoration: none; }
-    a.button { display: inline-block; color: #0d1510; background: #57ef96; border: 1px solid #77ffad; border-radius: .35rem; padding: .7rem 1rem; text-decoration: none; font-weight: 700; }
-    .hero { padding: 7rem 0 4rem; max-width: 50rem; }
-    .eyebrow { color: #57ef96; font-size: .85rem; text-transform: uppercase; letter-spacing: .12em; }
-    h1 { font-size: clamp(2.4rem, 7vw, 5.5rem); line-height: 1; letter-spacing: -.07em; margin: .65rem 0 1.2rem; }
-    p { color: #bac6bd; font-size: 1.05rem; line-height: 1.7; max-width: 44rem; }
-    .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
-    .secondary { color: #dce9df; border-color: #526057 !important; background: transparent !important; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 3rem; }
-    article { border: 1px solid #29342d; border-radius: .55rem; padding: 1.35rem; background: rgba(11, 15, 13, .75); }
-    h2 { font-size: 1rem; color: #57ef96; margin: 0 0 .5rem; }
-    article p { font-size: .9rem; margin: 0; }
-    footer { border-top: 1px solid #29342d; margin-top: 5rem; padding-top: 1.5rem; color: #849188; font-size: .8rem; }
-    @media (max-width: 42rem) { main { width: min(100% - 2rem, 72rem); } .hero { padding-top: 4.5rem; } .grid { grid-template-columns: 1fr; } }
-  </style>
-</head>
-
-<body>
-  <main>
-    <nav aria-label="Primary navigation">
-      <a class="brand" href="/">VEXLO</a>
-      <a class="button" href="/app">Open dashboard</a>
-    </nav>
-
-    <section class="hero">
-      <div class="eyebrow">Self-hosted local tunnels</div>
-      <h1>Expose local apps. Inspect every request.</h1>
-      <p>Vexlo securely connects a local development server to a public URL, captures HTTP traffic, and lets you inspect or replay requests from your dashboard.</p>
-      <div class="actions">
+  <body>
+    <main>
+      <nav aria-label="Primary navigation">
+        <a class="brand" href="/">VEXLO</a>
         <a class="button" href="/app">Open dashboard</a>
-        <a class="button secondary" href="https://github.com/sundaramrai/vexlo">View on GitHub</a>
-      </div>
-    </section>
+      </nav>
 
-    <section class="grid" aria-label="Vexlo features">
-      <article><h2>Local to public</h2><p>Connect a local port through an encrypted tunnel and receive a public address.</p></article>
-      <article><h2>Inspect and replay</h2><p>Review captured requests and responses, then replay or mutate them during development.</p></article>
-      <article><h2>Security by default</h2><p>Use TLS, authenticated tunnel registration, body limits, retention controls, and a private dashboard.</p></article>
-    </section>
+      <section class="hero">
+        <div class="eyebrow">Self-hosted local tunnels</div>
+        <h1>Expose local apps. Inspect every request.</h1>
+        <p>
+          Vexlo securely connects a local development server to a public URL,
+          captures HTTP traffic, and lets you inspect or replay requests from
+          your dashboard.
+        </p>
+        <div class="actions">
+          <a class="button" href="/app">Open dashboard</a>
+          <a
+            class="button secondary"
+            href="https://github.com/sundaramrai/vexlo"
+            >View on GitHub</a
+          >
+        </div>
+      </section>
 
-    <footer>Vexlo is currently self-hosted. Dashboard access is restricted to authorized users.</footer>
-  </main>
-</body>
+      <section class="grid" aria-label="Vexlo features">
+        <article>
+          <h2>Local to public</h2>
+          <p>
+            Connect a local port through an encrypted tunnel and receive a
+            public address.
+          </p>
+        </article>
+        <article>
+          <h2>Inspect and replay</h2>
+          <p>
+            Review captured requests and responses, then replay or mutate them
+            during development.
+          </p>
+        </article>
+        <article>
+          <h2>Security by default</h2>
+          <p>
+            Use TLS, authenticated tunnel registration, body limits, retention
+            controls, and a private dashboard.
+          </p>
+        </article>
+      </section>
 
+      <footer>
+        Vexlo is currently self-hosted. Dashboard access is restricted to
+        authorized users.
+      </footer>
+    </main>
+  </body>
 </html>

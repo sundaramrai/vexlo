@@ -160,6 +160,29 @@ func TestDashboardRequiresAdminAuthentication(t *testing.T) {
 	}
 }
 
+func TestLandingAssetIsPublicAndDashboardAssetsRemainProtected(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AdminUsername = "admin"
+	cfg.AdminPassword = "secret"
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
+	routes := server.routes()
+
+	landingReq := httptest.NewRequest(http.MethodGet, "http://localhost:8080/assets/landing.css", nil)
+	landingRec := httptest.NewRecorder()
+	routes.ServeHTTP(landingRec, landingReq)
+	if landingRec.Code != http.StatusOK {
+		t.Fatalf("landing asset expected status %d, got %d", http.StatusOK, landingRec.Code)
+	}
+
+	dashboardReq := httptest.NewRequest(http.MethodGet, "http://localhost:8080/assets/dashboard.css", nil)
+	dashboardRec := httptest.NewRecorder()
+	routes.ServeHTTP(dashboardRec, dashboardReq)
+	if dashboardRec.Code != http.StatusUnauthorized {
+		t.Fatalf("dashboard asset expected status %d, got %d", http.StatusUnauthorized, dashboardRec.Code)
+	}
+}
+
 func TestLegacyDashboardURLRedirectsToProtectedDashboard(t *testing.T) {
 	cfg := DefaultConfig()
 	manager, db := newTestManager(t, cfg)
@@ -173,5 +196,18 @@ func TestLegacyDashboardURLRedirectsToProtectedDashboard(t *testing.T) {
 	}
 	if location := rec.Header().Get("Location"); location != "http://localhost:8080/app?session=session-1&token=secret-token" {
 		t.Fatalf("expected protected dashboard redirect, got %q", location)
+	}
+}
+
+func TestUnknownPathWithLegacyDashboardQueryIsNotRedirected(t *testing.T) {
+	cfg := DefaultConfig()
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/unknown?session=session-1&token=secret-token", nil)
+	rec := httptest.NewRecorder()
+	server.handleRoot(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown path expected status %d, got %d", http.StatusNotFound, rec.Code)
 	}
 }

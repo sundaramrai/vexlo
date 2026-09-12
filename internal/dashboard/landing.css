@@ -1,0 +1,136 @@
+:root {
+  color-scheme: dark;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #090b0d;
+  color: #edf3eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 80% 0%, #123126 0%, transparent 34rem), #090b0d;
+}
+
+main {
+  width: min(72rem, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 3rem 0 4rem;
+}
+
+nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  color: #57ef96;
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+a.button {
+  display: inline-block;
+  padding: 0.7rem 1rem;
+  color: #0d1510;
+  font-weight: 700;
+  text-decoration: none;
+  background: #57ef96;
+  border: 1px solid #77ffad;
+  border-radius: 0.35rem;
+}
+
+.hero {
+  max-width: 50rem;
+  padding: 7rem 0 4rem;
+}
+
+.eyebrow,
+h2 {
+  color: #57ef96;
+}
+
+.eyebrow {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0.65rem 0 1.2rem;
+  font-size: clamp(2.4rem, 7vw, 5.5rem);
+  line-height: 1;
+  letter-spacing: -0.07em;
+}
+
+p {
+  max-width: 44rem;
+  color: #bac6bd;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+a.button.secondary {
+  color: #dce9df;
+  background: transparent;
+  border-color: #526057;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+article {
+  padding: 1.35rem;
+  background: rgb(11 15 13 / 75%);
+  border: 1px solid #29342d;
+  border-radius: 0.55rem;
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+article p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+footer {
+  margin-top: 5rem;
+  padding-top: 1.5rem;
+  color: #849188;
+  font-size: 0.8rem;
+  border-top: 1px solid #29342d;
+}
+
+@media (max-width: 42rem) {
+  main {
+    width: min(100% - 2rem, 72rem);
+  }
+
+  .hero {
+    padding-top: 4.5rem;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
