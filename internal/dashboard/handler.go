@@ -14,6 +14,13 @@ var dashboardCSS []byte
 //go:embed dashboard.js
 var dashboardJS []byte
 
+//go:embed landing.html
+var landingHTML []byte
+
+func ServeLanding(w http.ResponseWriter, _ *http.Request) {
+	serveAsset(w, "text/html; charset=utf-8", landingHTML)
+}
+
 func ServeHTML(w http.ResponseWriter, _ *http.Request) {
 	serveAsset(w, "text/html; charset=utf-8", dashboardHTML)
 }

@@ -130,7 +130,7 @@ func (m *TunnelManager) registered(session Session) *protocol.Registered {
 		SessionID:      session.ID,
 		Subdomain:      session.Subdomain,
 		ConnectURL:     m.publicURL(session.Subdomain),
-		DashboardURL:   m.cfg.HostURL + "/?token=" + session.AuthToken + "&session=" + session.ID,
+		DashboardURL:   m.cfg.HostURL + "/app?token=" + session.AuthToken + "&session=" + session.ID,
 		ConnectionType: session.ConnectionType,
 		StartedAt:      session.StartedAt,
 		AuthToken:      session.AuthToken,

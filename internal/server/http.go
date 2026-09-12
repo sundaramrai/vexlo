@@ -24,6 +24,7 @@ const (
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.withRequestLogging("root", s.handleRoot))
+	mux.HandleFunc("/app", s.withRequestLogging("dashboard", s.handleDashboard))
 	mux.HandleFunc("/assets/dashboard.css", s.withRequestLogging("dashboard_css", s.withAdminAuth(dashboard.ServeCSS)))
 	mux.HandleFunc("/assets/dashboard.js", s.withRequestLogging("dashboard_js", s.withAdminAuth(dashboard.ServeJS)))
 	mux.HandleFunc("/healthz", s.withRequestLogging("healthz", s.handleHealthz))
@@ -41,12 +42,33 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		s.handlePublicRequest(w, r, tunnel)
 		return
 	}
+	// Preserve legacy dashboard capability URLs while ensuring the public root
+	// itself never requires dashboard credentials.
+	if r.URL.Query().Get("session") != "" || r.URL.Query().Get("token") != "" {
+		redirectURL := *r.URL
+		redirectURL.Path = "/app"
+		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return
+	}
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	dashboard.ServeLanding(w, r)
+}
+
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/app" {
+		http.NotFound(w, r)
+		return
+	}
 	if !s.adminAuthorized(w, r) {
 		return
 	}
 	if token := r.URL.Query().Get("token"); token != "" {
 		http.SetCookie(w, &http.Cookie{Name: "vexlo_token", Value: token, Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode})
 		redirectURL := *r.URL
+		redirectURL.Path = "/app"
 		query := redirectURL.Query()
 		query.Del("token")
 		redirectURL.RawQuery = query.Encode()

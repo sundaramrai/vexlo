@@ -99,6 +99,10 @@ Open the printed dashboard URL. From there you can:
 - Replay requests
 - Mutate headers/body before replay
 
+The server root (`/`) is a public landing page. The dashboard is at `/app` and
+remains protected by the configured dashboard authentication. Public tunnel
+URLs continue to be reachable without dashboard credentials.
+
 ## Build binaries
 
 ```bash

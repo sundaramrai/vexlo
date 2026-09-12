@@ -106,16 +106,16 @@ func TestHandleRootStripsTokenFromRedirectURL(t *testing.T) {
 		manager: manager,
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/?session=session-1&token=secret-token", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/app?session=session-1&token=secret-token", nil)
 	rec := httptest.NewRecorder()
 
-	server.handleRoot(rec, req)
+	server.handleDashboard(rec, req)
 
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("expected redirect status %d, got %d", http.StatusSeeOther, rec.Code)
 	}
 	location := rec.Header().Get("Location")
-	if location != "http://localhost:8080/?session=session-1" {
+	if location != "http://localhost:8080/app?session=session-1" {
 		t.Fatalf("expected token-stripped redirect location, got %q", location)
 	}
 	if cookie := rec.Header().Get("Set-Cookie"); cookie == "" {
@@ -140,7 +140,38 @@ func TestPublicTunnelBypassesDashboardAdminAuthOnlyForConfiguredDomain(t *testin
 	req.Host = "vexlo.example.com"
 	rec := httptest.NewRecorder()
 	server.handleRoot(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("landing page expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestDashboardRequiresAdminAuthentication(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AdminUsername = "admin"
+	cfg.AdminPassword = "secret"
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/app", nil)
+	rec := httptest.NewRecorder()
+	server.handleDashboard(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("dashboard expected admin auth, got %d", rec.Code)
+	}
+}
+
+func TestLegacyDashboardURLRedirectsToProtectedDashboard(t *testing.T) {
+	cfg := DefaultConfig()
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/?session=session-1&token=secret-token", nil)
+	rec := httptest.NewRecorder()
+	server.handleRoot(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect status %d, got %d", http.StatusSeeOther, rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "http://localhost:8080/app?session=session-1&token=secret-token" {
+		t.Fatalf("expected protected dashboard redirect, got %q", location)
 	}
 }
