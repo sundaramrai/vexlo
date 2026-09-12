@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.5
+
+- add a public landing page at `/`
+- move the protected dashboard to `/app`
+- preserve legacy dashboard links by redirecting them to `/app`
+- keep dashboard assets protected while serving the landing stylesheet publicly
+
 ## v0.1.4
 
 - upgrade the Go toolchain to 1.25.13 to remediate reachable standard-library
