@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.7
+
+- upgrade `modernc.org/sqlite` from v1.37.1 to v1.58.0
+
 ## v0.1.6
 
 - upgrade GitHub Actions checkout and Go setup actions to v7
