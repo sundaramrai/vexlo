@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.6
+
+- upgrade GitHub Actions checkout and Go setup actions to v7
+- upgrade `github.com/coder/websocket` to v1.8.15
+
 ## v0.1.5
 
 - add a public landing page at `/`
