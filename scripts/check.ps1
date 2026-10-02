@@ -7,7 +7,7 @@ if (-not (Get-Command golangci-lint -ErrorAction SilentlyContinue)) {
 }
 
 Write-Host "==> gofmt"
-$unformatted = & gofmt -l cmd internal
+$unformatted = & gofmt -l cmd internal scripts
 if ($LASTEXITCODE -ne 0) {
     throw "gofmt failed"
 }
