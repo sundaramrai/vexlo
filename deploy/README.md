@@ -1,6 +1,10 @@
 # Deployment
 
-This directory contains production deployment artifacts for running Vexlo on a Linux VPS.
+This directory contains deployment artifacts for the operator-managed hosted
+Vexlo server on a Linux VPS. The next server binary supports only hosted
+tunnels, but `VEXLO_HOSTED_MODE` defaults to `false` and the binary refuses to
+start until the operator deliberately enables it. The published release and
+live VPS have not yet been switched to this version.
 
 ## Included files
 
@@ -11,7 +15,7 @@ This directory contains production deployment artifacts for running Vexlo on a L
 - `scripts/install_ubuntu.sh`
   Bootstraps packages, directories, firewall rules, env file, and systemd service.
 - `scripts/backup_vexlo.sh`
-  Copies the SQLite database into a timestamped backup directory.
+  Takes a consistent online SQLite backup and checks its integrity.
 
 ## Expected production layout
 
@@ -30,32 +34,58 @@ sudo ./deploy/scripts/install_ubuntu.sh \
   vexlo.example.com \
   https://vexlo.example.com \
   you@example.com \
-  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz \
-  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt
+  https://github.com/OWNER/REPO/releases/download/vX.Y.Z/vexlo-server-linux-amd64.tar.gz \
+  https://github.com/OWNER/REPO/releases/download/vX.Y.Z/SHA256SUMS.txt
 ```
 
-Then:
-
-```bash
-sudo systemctl start vexlo
-sudo journalctl -u vexlo -f
-```
-
-Before exposing the service publicly:
+Use the actual hosted release tag and architecture. This is an operator
+example, not a command to run against the current published release. Edit
+`/etc/vexlo/vexlo.env` before starting the new server:
 
 ```bash
 sudo nano /etc/vexlo/vexlo.env
 ```
 
-At minimum, replace:
+Set strong `VEXLO_ADMIN_PASS` credentials and `VEXLO_HOSTED_MODE=true` only
+after completing the launch checks. The new binary has no registration-token
+setting or legacy token-based tunnel mode. A service configured with
+`VEXLO_HOSTED_MODE=false` will fail closed rather than start a public listener.
+Ensure dashboard and wildcard certificate paths are valid, then start and
+inspect the service:
 
-- `VEXLO_REGISTRATION_TOKEN`
-- `VEXLO_ADMIN_PASS`
-- `VEXLO_ADMIN_USER` if you do not want the default `admin`
+```bash
+sudo systemctl start vexlo
+sudo systemctl --no-pager --full status vexlo
+sudo journalctl -u vexlo -f
+```
 
-The systemd unit reads these values from its protected environment file; it
-does not place the registration token or dashboard credentials in the server
-process command line.
+The service reads operator credentials from its protected environment file,
+not from process arguments. Hosted mode requires HTTPS, tunnel TLS, a public
+domain, positive limits, and operator credentials. The CLI currently targets
+`vexlo.duckdns.org:9000`; a different deployment hostname requires a client
+build configured for that service.
+
+When hosted mode is deliberately enabled, a quick tunnel lasts at most 8 hours;
+the reconnect grace is 30 seconds; ended captures are kept for 1 hour. The
+initial code defaults to 100 active tunnels, 5 per source IP, 100 in-flight
+public requests, 2 MiB request bodies, 16 KiB captured bodies, and 200 captured
+requests and replays per tunnel. Registration and public request rate limits
+also apply. These are provisional limits, not measured VPS capacity numbers.
+
+The operator can pause new registrations or revoke one hosted tunnel using
+the Basic-auth API (the password is prompted, not put in shell history):
+
+```bash
+curl -u admin -H 'Origin: https://vexlo.duckdns.org' \
+  -H 'Content-Type: application/json' -d '{"paused":true}' \
+  https://vexlo.duckdns.org/api/admin/registrations
+curl -u admin -H 'Origin: https://vexlo.duckdns.org' \
+  -X DELETE https://vexlo.duckdns.org/api/admin/tunnels/SESSION_ID
+```
+
+Use `{"paused":false}` to resume registrations. Replace the hostname, admin
+username, and session ID for your deployment. These endpoints require HTTPS
+and a matching `Origin` header.
 
 For dynamic public tunnel subdomains, use a wildcard certificate obtained
 through DNS-01. Set `VEXLO_TLS_CERT` and `VEXLO_TLS_KEY` to a certificate for
@@ -87,41 +117,15 @@ sudo ln -sf /opt/vexlo/sync_certificates.sh /etc/letsencrypt/renewal-hooks/deplo
 The installed `systemd` unit runs the server with:
 
 - TLS enabled on `:80` and `:443`
-- TLS required for the public tunnel listener on `:9000`; clients must pass `--tls --server-name "$VEXLO_BASE_DOMAIN"`
+- TLS required for the public tunnel listener on `:9000`; the CLI verifies the hosted server name
 - TCP tunnel listener on `:9000`
-- explicit registration token and admin credentials from `/etc/vexlo/vexlo.env`
+- explicit hosted activation and admin credentials from `/etc/vexlo/vexlo.env`
 - persistent DB and ACME cache paths
 - body-size limits, retention, and HTTP timeouts
 
-Equivalent manual command:
-
-```bash
-/opt/vexlo/vexlo-server \
-  --tls \
-  --tunnel-tls \
-  --tls-cert "$VEXLO_TLS_CERT" \
-  --tls-key "$VEXLO_TLS_KEY" \
-  --tls-extra-cert "$VEXLO_TLS_EXTRA_CERT" \
-  --tls-extra-key "$VEXLO_TLS_EXTRA_KEY" \
-  --http-addr :80 \
-  --https-addr :443 \
-  --tcp-addr :9000 \
-  --base-domain "$VEXLO_BASE_DOMAIN" \
-  --host-url "$VEXLO_HOST_URL" \
-  --registration-token "$VEXLO_REGISTRATION_TOKEN" \
-  --admin-user "$VEXLO_ADMIN_USER" \
-  --admin-pass "$VEXLO_ADMIN_PASS" \
-  --capture-body-limit "$VEXLO_CAPTURE_BODY_LIMIT" \
-  --max-request-body-bytes "$VEXLO_MAX_REQUEST_BODY_BYTES" \
-  --max-api-body-bytes "$VEXLO_MAX_API_BODY_BYTES" \
-  --retention-period "$VEXLO_RETENTION_PERIOD" \
-  --read-timeout "$VEXLO_READ_TIMEOUT" \
-  --write-timeout "$VEXLO_WRITE_TIMEOUT" \
-  --idle-timeout "$VEXLO_IDLE_TIMEOUT" \
-  --acme-email "$VEXLO_ACME_EMAIL" \
-  --acme-cache /var/lib/vexlo/acme-cache \
-  --db /var/lib/vexlo/vexlo.db
-```
+Use the systemd unit for production. Do not pass the admin password as a CLI
+flag in an interactive shell: process arguments can be visible to other users.
+The service reads it from the protected environment file instead.
 
 ## Backups
 
@@ -131,7 +135,8 @@ Create an on-demand backup:
 sudo /opt/vexlo/backup_vexlo.sh
 ```
 
-That captures:
-
-- `/var/lib/vexlo/vexlo.db`
-- optional WAL/SHM files if present
+That captures a consistent snapshot of `/var/lib/vexlo/vexlo.db`, including
+committed WAL transactions. The helper requires `sqlite3`; do not copy a live
+WAL database and its sidecar files separately. Before hosted launch, restore
+a backup into a separate test directory and verify both integrity and the
+expected session/request data. This has not yet been verified on the VPS.
