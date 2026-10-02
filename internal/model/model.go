@@ -11,6 +11,7 @@ type Session struct {
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
 	AuthToken      string     `json:"auth_token,omitempty"`
 	TunnelToken    string     `json:"tunnel_token,omitempty"`
+	Hosted         bool       `json:"-"`
 }
 
 type CapturedRequest struct {
