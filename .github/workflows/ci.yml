@@ -11,6 +11,7 @@ on:
       - "go.sum"
       - "cmd/**"
       - "internal/**"
+      - "scripts/**"
   pull_request:
     paths:
       - ".github/workflows/ci.yml"
@@ -19,6 +20,7 @@ on:
       - "go.sum"
       - "cmd/**"
       - "internal/**"
+      - "scripts/**"
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -30,12 +32,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Test Unix installer with local release fixture
+        run: sh scripts/test_install.sh
+
       - uses: actions/setup-go@v7
         with:
           go-version: "1.25.13"
 
       - name: Check formatting
-        run: test -z "$(gofmt -l cmd internal)"
+        run: test -z "$(gofmt -l cmd internal scripts)"
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -54,3 +59,18 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test Windows installer with local release fixture
+        shell: pwsh
+        run: ./scripts/test_install.ps1
+
+  macos-installer:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test macOS installer with local release fixture
+        run: sh scripts/test_install.sh
