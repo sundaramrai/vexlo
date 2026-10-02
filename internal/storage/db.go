@@ -40,6 +40,7 @@ func Open(path string) (*DB, error) {
 
 func (db *DB) migrate() error {
 	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS service_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id TEXT PRIMARY KEY,
 			subdomain TEXT NOT NULL,
@@ -48,7 +49,8 @@ func (db *DB) migrate() error {
 			auth_token TEXT NOT NULL,
 			tunnel_token TEXT NOT NULL DEFAULT '',
 			started_at DATETIME NOT NULL,
-			ended_at DATETIME
+			ended_at DATETIME,
+			hosted INTEGER NOT NULL DEFAULT 0
 		)`,
 		`CREATE TABLE IF NOT EXISTS requests (
 			id TEXT PRIMARY KEY,
@@ -86,6 +88,9 @@ func (db *DB) migrate() error {
 		}
 	}
 	if err := ensureColumn(db.sql, "sessions", "tunnel_token", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db.sql, "sessions", "hosted", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	if err := db.applyPragmas(); err != nil {
