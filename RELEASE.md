@@ -1,13 +1,13 @@
 # Release Guide
 
-This repo is released as a self-hosted tunnel server plus client binaries.
+The next release changes Vexlo to a hosted-only tunnel service and CLI. Do not
+tag it until the hosted launch checks are complete and the server deployment is
+ready. Existing published releases retain their historical behavior.
 
 ## Scope
 
-- `vexlo-server`
-  Public/self-hosted server binary
-- `vexlo`
-  Tunnel client binary
+- `vexlo-server`: operator-managed hosted server binary
+- `vexlo`: developer CLI (`vexlo http <port>`)
 
 ## Before Tagging
 
@@ -16,11 +16,18 @@ This repo is released as a self-hosted tunnel server plus client binaries.
 
 ```bash
 go test ./...
+go vet ./...
 go build ./...
 ```
 
+Run `sh scripts/test_install.sh` on Linux or macOS. CI also runs the Windows
+installer fixture test on a disposable Windows runner. Do not run that test on
+your everyday Windows account: it temporarily updates the user PATH.
+
 1. Read [README.md](README.md) and [deploy/README.md](deploy/README.md) once as a user, not as the author.
-2. Update [CHANGELOG.md](CHANGELOG.md) if the release contents changed.
+2. Complete the remaining checks in [the hosted-service plan](docs/hosted-service-plan.md): real cross-platform tunnels and dashboard access, installation from the tagged artifacts, load limits, backup restoration, and monitoring/abuse contact. Confirm all installer CI jobs pass.
+3. Update [CHANGELOG.md](CHANGELOG.md) for the breaking removal of the shared-token CLI and server flow.
+4. Prepare the VPS configuration with `VEXLO_HOSTED_MODE=true`, working dashboard and wildcard TLS, and operator credentials. Do not install the new binary with `VEXLO_HOSTED_MODE=false`: it will intentionally refuse to start.
 
 ## Tagging A Release
 
@@ -40,6 +47,7 @@ That triggers [.github/workflows/release.yml](.github/workflows/release.yml), wh
 - `vexlo-darwin-amd64.tar.gz`
 - `vexlo-darwin-arm64.tar.gz`
 - `vexlo-windows-amd64.zip`
+- `vexlo-windows-arm64.zip`
 - `SHA256SUMS.txt`
 
 ## Suggested GitHub Release Text
@@ -53,7 +61,7 @@ Vexlo vX.Y.Z
 Summary:
 
 ```text
-Vexlo is a self-hosted localhost tunnel server with a terminal-style dashboard for request capture, replay, and mutation.
+Vexlo gives developers a temporary public HTTPS URL and private request-inspection dashboard with `vexlo http <port>`.
 ```
 
 ## Post-Release Checks
@@ -63,3 +71,5 @@ Vexlo is a self-hosted localhost tunnel server with a terminal-style dashboard f
 3. Verify `SHA256SUMS.txt` is present.
 4. Download at least one archive and confirm it extracts cleanly.
 5. If you are publishing deployment guidance, confirm the server artifact names in the docs still match the release assets.
+6. Deploy the hosted server deliberately, verify `/healthz`, then test a real tunnel, its public URL, and private dashboard.
+7. Verify `/install.sh` and `/install.ps1` return the release installers, then run each one-line command on a clean supported device and confirm `vexlo http 3000` works.
