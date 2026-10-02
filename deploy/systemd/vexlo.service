@@ -21,6 +21,7 @@ ExecStart=/opt/vexlo/vexlo-server \
   --tcp-addr :9000 \
   --base-domain ${VEXLO_BASE_DOMAIN} \
   --host-url ${VEXLO_HOST_URL} \
+  --hosted=${VEXLO_HOSTED_MODE} \
   --capture-body-limit ${VEXLO_CAPTURE_BODY_LIMIT} \
   --max-request-body-bytes ${VEXLO_MAX_REQUEST_BODY_BYTES} \
   --max-api-body-bytes ${VEXLO_MAX_API_BODY_BYTES} \
