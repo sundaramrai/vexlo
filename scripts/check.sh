@@ -7,7 +7,7 @@ if ! command -v golangci-lint >/dev/null 2>&1; then
 fi
 
 echo "==> gofmt"
-unformatted="$(gofmt -l cmd internal)"
+unformatted="$(gofmt -l cmd internal scripts)"
 if [[ -n "$unformatted" ]]; then
   echo "Unformatted files detected:"
   echo "$unformatted"
