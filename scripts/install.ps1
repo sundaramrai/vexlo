@@ -1,10 +1,17 @@
 $ErrorActionPreference = 'Stop'
 
-$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-if ($architecture -notin @('X64', 'Arm64')) {
+$runtimeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+if ($null -ne $runtimeArchitecture) {
+    $architecture = $runtimeArchitecture.ToString()
+} elseif ($env:PROCESSOR_ARCHITEW6432) {
+    $architecture = $env:PROCESSOR_ARCHITEW6432
+} else {
+    $architecture = $env:PROCESSOR_ARCHITECTURE
+}
+if ($architecture -notin @('X64', 'AMD64', 'ARM64')) {
     throw "Unsupported Windows architecture: $architecture"
 }
-$arch = if ($architecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
+$arch = if ($architecture -eq 'ARM64') { 'arm64' } else { 'amd64' }
 $archiveName = "vexlo-windows-$arch.zip"
 $releaseBase = 'https://github.com/sundaramrai/vexlo/releases/latest/download'
 $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vexlo-install-" + [guid]::NewGuid().ToString('N'))

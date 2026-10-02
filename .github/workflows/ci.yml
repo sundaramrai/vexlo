@@ -67,6 +67,9 @@ jobs:
       - name: Test Windows installer with local release fixture
         shell: pwsh
         run: ./scripts/test_install.ps1
+      - name: Test Windows installer in Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/test_install.ps1
 
   macos-installer:
     runs-on: macos-latest

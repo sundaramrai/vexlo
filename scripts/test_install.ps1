@@ -1,10 +1,11 @@
 $ErrorActionPreference = 'Stop'
 
-$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-if ($architecture -notin @('X64', 'Arm64')) {
+$runtimeArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+$architecture = if ($null -ne $runtimeArchitecture) { $runtimeArchitecture.ToString() } elseif ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+if ($architecture -notin @('X64', 'AMD64', 'ARM64')) {
     throw "Unsupported test architecture: $architecture"
 }
-$arch = if ($architecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
+$arch = if ($architecture -eq 'ARM64') { 'arm64' } else { 'amd64' }
 $archiveName = "vexlo-windows-$arch.zip"
 $binaryName = "vexlo-windows-$arch.exe"
 $tempBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
@@ -45,6 +46,18 @@ try {
     & "$PSScriptRoot/install.ps1"
     if ((@([Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -eq $installDir })).Count -ne 1) {
         throw 'Windows installer duplicated the PATH entry.'
+    }
+
+    $installerText = Get-Content -LiteralPath "$PSScriptRoot/install.ps1" -Raw
+    $architectureProbe = '[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture'
+    if (-not $installerText.Contains($architectureProbe)) {
+        throw 'Windows installer architecture detection changed; update the null fallback test.'
+    }
+    $fallbackInstaller = Join-Path $testRoot 'install-null-architecture.ps1'
+    [System.IO.File]::WriteAllText($fallbackInstaller, $installerText.Replace($architectureProbe, '$null'))
+    & $fallbackInstaller
+    if ([System.IO.File]::ReadAllText($installed) -ne 'fixture cli') {
+        throw 'Windows installer failed when runtime architecture was null.'
     }
 
     [System.IO.File]::WriteAllText((Join-Path $fixture 'SHA256SUMS.txt'), "$('0' * 64)  $archiveName`n")
