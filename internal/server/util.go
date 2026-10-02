@@ -51,11 +51,11 @@ func captureBody(raw []byte, limit int) string {
 }
 
 func captureResponseBody(headers http.Header, raw []byte, limit int) string {
-	decoded := decodeResponseBody(headers, raw)
+	decoded := decodeResponseBody(headers, raw, limit)
 	return captureBody(decoded, limit)
 }
 
-func decodeResponseBody(headers http.Header, raw []byte) []byte {
+func decodeResponseBody(headers http.Header, raw []byte, limit int) []byte {
 	encoding := strings.ToLower(strings.TrimSpace(headers.Get("Content-Encoding")))
 	if !strings.Contains(encoding, "gzip") {
 		return raw
@@ -66,7 +66,10 @@ func decodeResponseBody(headers http.Header, raw []byte) []byte {
 	}
 	defer func() { _ = reader.Close() }()
 
-	decoded, err := io.ReadAll(reader)
+	if limit <= 0 || limit > 2*1024*1024 {
+		limit = 2 * 1024 * 1024
+	}
+	decoded, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
 	if err != nil {
 		return raw
 	}
