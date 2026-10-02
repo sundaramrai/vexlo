@@ -2,31 +2,41 @@ package server
 
 import (
 	"errors"
+	"time"
 
 	"github.com/sundaramrai/vexlo/internal/protocol"
+	"github.com/sundaramrai/vexlo/internal/storage"
 )
 
 func (m *TunnelManager) validateRegistration(reg protocol.Register) error {
-	if reg.LocalPort <= 0 {
+	if reg.LocalPort <= 0 || reg.LocalPort > 65535 {
 		return errors.New("invalid local port")
 	}
+	if !reg.Quick {
+		return errors.New("client must support quick tunnels")
+	}
 	if reg.SessionID != "" {
-		session, err := m.storage.GetSession(reg.SessionID)
-		if err != nil {
-			return errors.New("invalid session resume")
-		}
-		if reg.ResumeToken == "" || reg.ResumeToken != session.TunnelToken {
-			return errors.New("invalid resume token")
-		}
-		return nil
+		return m.validateResume(reg)
 	}
-	if m.cfg.RegistrationToken == "" {
-		return errors.New("registration token not configured")
+	return nil
+}
+
+func (m *TunnelManager) validateResume(reg protocol.Register) error {
+	session, err := m.storage.GetSession(reg.SessionID)
+	if err != nil {
+		return errors.New("invalid session resume")
 	}
-	if subtleConstantTimeCompare(reg.ClientToken, m.cfg.RegistrationToken) {
-		return nil
+	if !session.Hosted {
+		return errors.New("invalid session mode")
 	}
-	return errors.New("invalid registration token")
+	if time.Since(session.StartedAt) >= m.cfg.HostedLifetime ||
+		(session.EndedAt != nil && time.Since(*session.EndedAt) > 30*time.Second) {
+		return errors.New("quick tunnel expired")
+	}
+	if reg.ResumeToken == "" || !subtleConstantTimeCompare(storage.HashHostedSecret(reg.ResumeToken), session.TunnelToken) {
+		return errors.New("invalid resume token")
+	}
+	return nil
 }
 
 func subtleConstantTimeCompare(a, b string) bool {
