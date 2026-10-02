@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/sundaramrai/vexlo/internal/protocol"
 )
@@ -18,11 +19,21 @@ func (s *Server) acceptBinary(ctxDone interface{ Done() <-chan struct{} }) {
 		if err != nil {
 			return
 		}
+		if s.binarySlots != nil {
+			select {
+			case s.binarySlots <- struct{}{}:
+			default:
+				_ = conn.Close()
+				continue
+			}
+		}
 		go s.handleBinaryConn(conn)
 	}
 }
 
 func (s *Server) handleBinaryConn(conn net.Conn) {
+	defer releaseSlot(s.binarySlots)
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	defer func() {
 		if recover() != nil {
 			_ = conn.Close()
@@ -36,9 +47,11 @@ func (s *Server) handleBinaryConn(conn net.Conn) {
 		_ = conn.Close()
 		return
 	}
+	_ = conn.SetReadDeadline(time.Time{})
 	registered, tunnel, err := s.manager.Register(conn, reg)
 	if err != nil {
 		slog.Warn("binary tunnel registration failed", "remote_addr", conn.RemoteAddr().String(), "error", err)
+		_ = protocol.Encode(conn, protocol.TypeError, protocol.Error{Message: err.Error()})
 		_ = conn.Close()
 		return
 	}
