@@ -1,12 +1,12 @@
 const params = new URLSearchParams(location.search);
+const handoffParams = new URLSearchParams(location.hash.slice(1));
 const state = {
   requests: [],
   selectedRequest: null,
   filterMethod: "ALL",
   searchQuery: "",
   tab: "request",
-  session: params.get("session"),
-  token: params.get("token"),
+  session: params.get("session") || handoffParams.get("session"),
   sessionInfo: null,
   ws: null,
   reconnectTimer: null,
@@ -40,7 +40,23 @@ const methodButtons = [...document.querySelectorAll("[data-method]")];
 const tabButtons = [...document.querySelectorAll("[data-tab]")];
 
 const apiBase = (path) =>
-  `${path}?session=${encodeURIComponent(state.session || "")}&token=${encodeURIComponent(state.token || "")}`;
+  `${path}?session=${encodeURIComponent(state.session || "")}`;
+
+const publicURLForSession = (subdomain) =>
+  `https://${subdomain}.${location.hostname}`;
+
+const claimHostedDashboard = async () => {
+  const handoff = handoffParams.get("handoff");
+  if (!handoff) return;
+  // Remove the one-time secret from the address bar before any network work.
+  history.replaceState(null, "", `/app?session=${encodeURIComponent(state.session)}`);
+  const response = await fetch("/api/hosted/claim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session: state.session, handoff }),
+  });
+  if (!response.ok) throw new Error("Dashboard link expired. Reconnect the CLI for a new link.");
+};
 
 const formatDate = (value) => {
   const date = new Date(value);
@@ -432,12 +448,12 @@ const loadInitial = async () => {
     let current = sessions.find((item) => item.id === state.session);
     if (!current && sessions.length) current = sessions[0];
     if (!current) {
-      throw new Error("No session available for this dashboard token.");
+      throw new Error("No session available for this dashboard link.");
     }
 
     state.session = current.id;
     state.sessionInfo = current;
-    elements.tunnelURL.textContent = `${location.origin}/t/${current.subdomain}`;
+    elements.tunnelURL.textContent = publicURLForSession(current.subdomain);
 
     state.requests = asArray(await requestJSON("/api/requests"));
     state.selectedRequest = ensureSelectedRequest(state.requests);
@@ -488,7 +504,7 @@ const connectWS = () => {
   setConnectionState("connecting");
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(
-    `${protocol}//${location.host}/ws/events?session=${encodeURIComponent(state.session)}&token=${encodeURIComponent(state.token || "")}`,
+    `${protocol}//${location.host}/ws/events?session=${encodeURIComponent(state.session)}`,
   );
   state.ws = ws;
 
@@ -581,7 +597,7 @@ const copyCurl = async () => {
   if (!state.selectedRequest || !state.sessionInfo) return;
   const request = state.selectedRequest;
   const querySuffix = request.query ? "?" + request.query : "";
-  const url = `${location.origin}/t/${state.sessionInfo.subdomain}${request.path}${querySuffix}`;
+  const url = `${publicURLForSession(state.sessionInfo.subdomain)}${request.path}${querySuffix}`;
   const headers = parseHeaderJSON(request.headers);
   const headerParts = Object.entries(headers)
     .flatMap(([key, values]) =>
@@ -652,4 +668,9 @@ globalThis.addEventListener("beforeunload", () => {
 setConnectionState("offline");
 syncTabs();
 render();
-await loadInitial();
+try {
+  await claimHostedDashboard();
+  await loadInitial();
+} catch (error) {
+  showError(error.message || "Could not open dashboard.");
+}
