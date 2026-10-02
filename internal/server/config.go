@@ -23,10 +23,15 @@ type Config struct {
 	ReadTimeout         time.Duration
 	WriteTimeout        time.Duration
 	IdleTimeout         time.Duration
-	RegistrationToken   string
 	RetentionPeriod     time.Duration
 	AdminUsername       string
 	AdminPassword       string
+	Hosted              bool
+	HostedMaxTunnels    int
+	HostedMaxPerIP      int
+	HostedMaxInFlight   int
+	HostedLifetime      time.Duration
+	HostedRetention     time.Duration
 }
 
 func DefaultConfig() Config {
@@ -45,5 +50,10 @@ func DefaultConfig() Config {
 		WriteTimeout:        60 * time.Second,
 		IdleTimeout:         60 * time.Second,
 		RetentionPeriod:     7 * 24 * time.Hour,
+		HostedMaxTunnels:    100,
+		HostedMaxPerIP:      5,
+		HostedMaxInFlight:   100,
+		HostedLifetime:      8 * time.Hour,
+		HostedRetention:     time.Hour,
 	}
 }
