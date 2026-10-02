@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -14,22 +13,21 @@ import (
 
 func main() {
 	cfg := client.DefaultConfig()
-	flag.StringVar(&cfg.ServerAddr, "server", "127.0.0.1:9000", "binary server address")
-	flag.StringVar(&cfg.RegisterToken, "register-token", "", "shared registration token required by the server")
-	flag.BoolVar(&cfg.EnableTLS, "tls", false, "use TLS for the binary tunnel connection")
-	flag.StringVar(&cfg.ServerName, "server-name", "", "TLS server name; defaults to the host in --server")
-	flag.DurationVar(&cfg.RequestTimeout, "request-timeout", cfg.RequestTimeout, "local app request timeout")
-	flag.Int64Var(&cfg.MaxResponseBodyBytes, "max-response-body-bytes", cfg.MaxResponseBodyBytes, "max local app response body forwarded through the tunnel")
-	flag.Parse()
-
-	if flag.NArg() > 0 {
-		port, err := strconv.Atoi(flag.Arg(0))
-		if err != nil {
-			log.Fatalf("invalid port: %v", err)
-		}
-		cfg.LocalPort = port
+	if len(os.Args) != 3 || os.Args[1] != "http" {
+		log.Fatal("usage: vexlo http <local-port>")
 	}
+	port, err := strconv.Atoi(os.Args[2])
+	if err != nil || port < 1 || port > 65535 {
+		log.Fatal("local port must be between 1 and 65535")
+	}
+	cfg.LocalPort = port
+	cfg.ServerAddr = "vexlo.duckdns.org:9000"
+	cfg.EnableTLS = true
+	cfg.ServerName = "vexlo.duckdns.org"
+	run(cfg)
+}
 
+func run(cfg client.Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
