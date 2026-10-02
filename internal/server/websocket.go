@@ -15,6 +15,11 @@ func (s *Server) handleEventsWS(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusUnauthorized, err.Error(), err)
 		return
 	}
+	if !acquireSlot(s.websocketSlots) {
+		s.writeError(w, r, http.StatusTooManyRequests, "dashboard connection limit reached", nil)
+		return
+	}
+	defer releaseSlot(s.websocketSlots)
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		slog.WarnContext(r.Context(), "websocket accept failed", logAttrs(r, "error", err.Error())...)
