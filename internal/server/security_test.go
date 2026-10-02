@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -11,7 +13,30 @@ import (
 	"github.com/sundaramrai/vexlo/internal/model"
 	"github.com/sundaramrai/vexlo/internal/protocol"
 	"github.com/sundaramrai/vexlo/internal/storage"
+	installers "github.com/sundaramrai/vexlo/scripts"
 )
+
+func TestHealthzReportsHostedRetention(t *testing.T) {
+	cfg := hostedTestConfig()
+	cfg.RetentionPeriod = 7 * 24 * time.Hour
+	cfg.HostedRetention = time.Hour
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, manager: manager}
+	rec := httptest.NewRecorder()
+	server.handleHealthz(rec, httptest.NewRequest(http.MethodGet, "https://vexlo.example.com/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("healthz status: %d", rec.Code)
+	}
+	var response struct {
+		RetentionSecs int64 `json:"retention_secs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode healthz: %v", err)
+	}
+	if response.RetentionSecs != int64(time.Hour.Seconds()) {
+		t.Fatalf("healthz retention_secs = %d, want %d", response.RetentionSecs, int64(time.Hour.Seconds()))
+	}
+}
 
 func newTestManager(t *testing.T, cfg Config) (*TunnelManager, *storage.DB) {
 	t.Helper()
@@ -20,194 +45,115 @@ func newTestManager(t *testing.T, cfg Config) (*TunnelManager, *storage.DB) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return NewTunnelManager(cfg, db, dashboard.NewHub()), db
+	return NewTunnelManager(cfg, db), db
 }
 
-func TestValidateRegistrationRequiresClientTokenForNewTCPRegistrations(t *testing.T) {
-	manager, _ := newTestManager(t, Config{RegistrationToken: "shared-token"})
-
-	err := manager.validateRegistration(protocol.Register{
-		LocalPort:      3000,
-		ConnectionType: "tcp",
-		ClientToken:    "shared-token",
-	})
-	if err != nil {
-		t.Fatalf("expected registration to succeed, got %v", err)
-	}
-
-	err = manager.validateRegistration(protocol.Register{
-		LocalPort:      3000,
-		ConnectionType: "tcp",
-		ClientToken:    "wrong-token",
-	})
-	if err == nil {
-		t.Fatal("expected invalid token to fail")
+func TestInstallerRoutes(t *testing.T) {
+	cfg := hostedTestConfig()
+	manager, db := newTestManager(t, cfg)
+	server := &Server{cfg: cfg, db: db, manager: manager}
+	for _, tc := range []struct {
+		path string
+		body []byte
+	}{
+		{path: "/install.sh", body: installers.Shell()},
+		{path: "/install.ps1", body: installers.PowerShell()},
+	} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			rec := httptest.NewRecorder()
+			server.routes().ServeHTTP(rec, httptest.NewRequest(method, "https://vexlo.example.com"+tc.path, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s %s status: %d", method, tc.path, rec.Code)
+			}
+			if rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("%s %s missing installer headers", method, tc.path)
+			}
+			if method == http.MethodGet && !bytes.Equal(rec.Body.Bytes(), tc.body) {
+				t.Fatalf("%s did not serve the packaged installer", tc.path)
+			}
+			if method == http.MethodHead && rec.Body.Len() != 0 {
+				t.Fatalf("HEAD %s returned a body", tc.path)
+			}
+		}
+		rec := httptest.NewRecorder()
+		server.routes().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "https://vexlo.example.com"+tc.path, nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("POST %s status: %d", tc.path, rec.Code)
+		}
 	}
 }
 
-func TestValidateRegistrationRequiresResumeTokenForExistingSession(t *testing.T) {
-	manager, db := newTestManager(t, Config{RegistrationToken: "shared-token"})
+func TestRegistrationRejectsLegacyClient(t *testing.T) {
+	manager, _ := newTestManager(t, hostedTestConfig())
+	if err := manager.validateRegistration(protocol.Register{LocalPort: 3000}); err == nil {
+		t.Fatal("legacy client registered without quick-tunnel support")
+	}
+	if err := manager.validateRegistration(protocol.Register{LocalPort: 3000, Quick: true}); err != nil {
+		t.Fatalf("quick tunnel registration rejected: %v", err)
+	}
+}
+
+func TestResumeRejectsLegacyStoredSession(t *testing.T) {
+	manager, db := newTestManager(t, hostedTestConfig())
 	session := model.Session{
-		ID:             "sess-1",
-		Subdomain:      "abc123",
-		LocalPort:      3000,
-		ConnectionType: "tcp",
-		StartedAt:      time.Now().UTC(),
-		AuthToken:      "dashboard-token",
-		TunnelToken:    "resume-secret",
+		ID: "old-session", Subdomain: "old", LocalPort: 3000,
+		ConnectionType: "tcp", StartedAt: time.Now().UTC(),
+		AuthToken: "old-dashboard-token", TunnelToken: "old-resume-token",
 	}
 	if err := db.UpsertSession(session); err != nil {
-		t.Fatalf("upsert session: %v", err)
+		t.Fatal(err)
 	}
-
-	err := manager.validateRegistration(protocol.Register{
-		SessionID:      session.ID,
-		LocalPort:      3000,
-		ConnectionType: "tcp",
-		ResumeToken:    "resume-secret",
-	})
-	if err != nil {
-		t.Fatalf("expected resume to succeed, got %v", err)
-	}
-
-	err = manager.validateRegistration(protocol.Register{
-		SessionID:      session.ID,
-		LocalPort:      3000,
-		ConnectionType: "tcp",
-		ResumeToken:    "wrong-secret",
-	})
-	if err == nil {
-		t.Fatal("expected invalid resume token to fail")
+	if err := manager.validateRegistration(protocol.Register{
+		SessionID: session.ID, LocalPort: 3000, ResumeToken: session.TunnelToken, Quick: true,
+	}); err == nil {
+		t.Fatal("legacy session resumed on hosted-only server")
 	}
 }
 
 func TestSanitizeSessionStripsSecrets(t *testing.T) {
-	session := model.Session{
-		ID:          "sess-1",
-		AuthToken:   "dashboard-token",
-		TunnelToken: "resume-secret",
-	}
+	session := model.Session{ID: "session", AuthToken: "dashboard", TunnelToken: "resume"}
 	sanitized := sanitizeSession(session)
-	if sanitized.AuthToken != "" {
-		t.Fatalf("expected auth token to be stripped, got %q", sanitized.AuthToken)
-	}
-	if sanitized.TunnelToken != "" {
-		t.Fatalf("expected tunnel token to be stripped, got %q", sanitized.TunnelToken)
+	if sanitized.AuthToken != "" || sanitized.TunnelToken != "" {
+		t.Fatal("session API exposed a secret")
 	}
 }
 
-func TestHandleRootStripsTokenFromRedirectURL(t *testing.T) {
-	cfg := DefaultConfig()
+func TestPublicTunnelMatchesOnlyConfiguredDomain(t *testing.T) {
+	cfg := hostedTestConfig()
 	manager, db := newTestManager(t, cfg)
-	server := &Server{
-		cfg:     cfg,
-		db:      db,
-		hub:     dashboard.NewHub(),
-		manager: manager,
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/app?session=session-1&token=secret-token", nil)
-	rec := httptest.NewRecorder()
-
-	server.handleDashboard(rec, req)
-
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("expected redirect status %d, got %d", http.StatusSeeOther, rec.Code)
-	}
-	location := rec.Header().Get("Location")
-	if location != "http://localhost:8080/app?session=session-1" {
-		t.Fatalf("expected token-stripped redirect location, got %q", location)
-	}
-	if cookie := rec.Header().Get("Set-Cookie"); cookie == "" {
-		t.Fatal("expected auth cookie to be set")
-	}
-}
-
-func TestPublicTunnelBypassesDashboardAdminAuthOnlyForConfiguredDomain(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.BaseDomain = "vexlo.example.com"
-	cfg.AdminUsername = "admin"
-	cfg.AdminPassword = "secret"
-	manager, db := newTestManager(t, cfg)
-	tunnel := newTunnel(nil, Session{ID: "session-1", Subdomain: "abc", LocalPort: 3000})
+	tunnel := newTunnel(nil, Session{ID: "session", Subdomain: "abc", LocalPort: 3000, Hosted: true})
 	manager.installTunnel(tunnel)
 	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
-
-	if got := manager.FindByHost("abc.other.example"); got != nil {
+	if manager.FindByHost("abc.other.example") != nil {
 		t.Fatal("host outside base domain selected a tunnel")
 	}
-	req := httptest.NewRequest(http.MethodGet, "http://vexlo.example.com/", nil)
-	req.Host = "vexlo.example.com"
 	rec := httptest.NewRecorder()
-	server.handleRoot(rec, req)
+	server.handleRoot(rec, httptest.NewRequest(http.MethodGet, "https://vexlo.example.com/", nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("landing page expected status %d, got %d", http.StatusOK, rec.Code)
+		t.Fatalf("landing page status: %d", rec.Code)
 	}
 }
 
-func TestDashboardRequiresAdminAuthentication(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.AdminUsername = "admin"
-	cfg.AdminPassword = "secret"
+func TestDashboardRejectsLegacyTokenURL(t *testing.T) {
+	cfg := hostedTestConfig()
 	manager, db := newTestManager(t, cfg)
-	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
-
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/app", nil)
+	server := &Server{cfg: cfg, db: db, manager: manager}
 	rec := httptest.NewRecorder()
-	server.handleDashboard(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("dashboard expected admin auth, got %d", rec.Code)
+	server.handleDashboard(rec, httptest.NewRequest(http.MethodGet, "https://vexlo.example.com/app?token=old-secret", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("legacy token URL status: %d", rec.Code)
 	}
 }
 
-func TestLandingAssetIsPublicAndDashboardAssetsRemainProtected(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.AdminUsername = "admin"
-	cfg.AdminPassword = "secret"
+func TestLandingAndDashboardAssetsArePublic(t *testing.T) {
+	cfg := hostedTestConfig()
 	manager, db := newTestManager(t, cfg)
-	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
-	routes := server.routes()
-
-	landingReq := httptest.NewRequest(http.MethodGet, "http://localhost:8080/assets/landing.css", nil)
-	landingRec := httptest.NewRecorder()
-	routes.ServeHTTP(landingRec, landingReq)
-	if landingRec.Code != http.StatusOK {
-		t.Fatalf("landing asset expected status %d, got %d", http.StatusOK, landingRec.Code)
-	}
-
-	dashboardReq := httptest.NewRequest(http.MethodGet, "http://localhost:8080/assets/dashboard.css", nil)
-	dashboardRec := httptest.NewRecorder()
-	routes.ServeHTTP(dashboardRec, dashboardReq)
-	if dashboardRec.Code != http.StatusUnauthorized {
-		t.Fatalf("dashboard asset expected status %d, got %d", http.StatusUnauthorized, dashboardRec.Code)
-	}
-}
-
-func TestLegacyDashboardURLRedirectsToProtectedDashboard(t *testing.T) {
-	cfg := DefaultConfig()
-	manager, db := newTestManager(t, cfg)
-	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
-
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/?session=session-1&token=secret-token", nil)
-	rec := httptest.NewRecorder()
-	server.handleRoot(rec, req)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("expected redirect status %d, got %d", http.StatusSeeOther, rec.Code)
-	}
-	if location := rec.Header().Get("Location"); location != "http://localhost:8080/app?session=session-1&token=secret-token" {
-		t.Fatalf("expected protected dashboard redirect, got %q", location)
-	}
-}
-
-func TestUnknownPathWithLegacyDashboardQueryIsNotRedirected(t *testing.T) {
-	cfg := DefaultConfig()
-	manager, db := newTestManager(t, cfg)
-	server := &Server{cfg: cfg, db: db, hub: dashboard.NewHub(), manager: manager}
-
-	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/unknown?session=session-1&token=secret-token", nil)
-	rec := httptest.NewRecorder()
-	server.handleRoot(rec, req)
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("unknown path expected status %d, got %d", http.StatusNotFound, rec.Code)
+	server := &Server{cfg: cfg, db: db, manager: manager}
+	for _, path := range []string{"/assets/landing.css", "/assets/dashboard.css"} {
+		rec := httptest.NewRecorder()
+		server.routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "https://vexlo.example.com"+path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status: %d", path, rec.Code)
+		}
 	}
 }
