@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,29 +17,50 @@ import (
 )
 
 type Server struct {
-	cfg       Config
-	manager   *TunnelManager
-	db        *storage.DB
-	hub       *dashboard.Hub
-	httpSrv   *http.Server
-	httpPlain *http.Server
-	tcpLn     net.Listener
-	closeOnce sync.Once
+	cfg            Config
+	manager        *TunnelManager
+	db             *storage.DB
+	hub            *dashboard.Hub
+	httpSrv        *http.Server
+	httpPlain      *http.Server
+	tcpLn          net.Listener
+	binarySlots    chan struct{}
+	websocketSlots chan struct{}
+	closeOnce      sync.Once
 }
 
 func New(cfg Config) (*Server, error) {
+	if !cfg.Hosted || !cfg.EnableTLS || !cfg.EnableTunnelTLS || !strings.HasPrefix(cfg.HostURL, "https://") ||
+		cfg.BaseDomain == "" || cfg.BaseDomain == "localhost" || cfg.HostedMaxTunnels <= 0 ||
+		cfg.HostedMaxPerIP <= 0 || cfg.HostedMaxInFlight <= 0 || cfg.HostedLifetime <= 0 || cfg.HostedRetention <= 0 ||
+		cfg.AdminUsername == "" || cfg.AdminPassword == "" {
+		return nil, errors.New("hosted mode must be explicitly enabled and requires public HTTPS, tunnel TLS, a domain, positive limits, and operator credentials")
+	}
 	db, err := storage.Open(cfg.DBPath)
 	if err != nil {
 		return nil, err
 	}
+	if err := db.EndOrphanedHostedSessions(time.Now().UTC()); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	hub := dashboard.NewHub()
-	manager := NewTunnelManager(cfg, db, hub)
-	return &Server{
+	manager := NewTunnelManager(cfg, db)
+	paused, err := db.HostedRegistrationsPaused()
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	manager.registrationsPaused.Store(paused)
+	srv := &Server{
 		cfg:     cfg,
 		db:      db,
 		hub:     hub,
 		manager: manager,
-	}, nil
+	}
+	srv.binarySlots = make(chan struct{}, cfg.HostedMaxTunnels+100)
+	srv.websocketSlots = make(chan struct{}, cfg.HostedMaxTunnels*2)
+	return srv, nil
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -54,6 +77,7 @@ func (s *Server) Start(ctx context.Context) error {
 		WriteTimeout:      s.cfg.WriteTimeout,
 		IdleTimeout:       s.cfg.IdleTimeout,
 	}
+	s.httpSrv.MaxHeaderBytes = 16 * 1024
 
 	tcpLn, err := net.Listen("tcp", s.cfg.TCPAddr)
 	if err != nil {
@@ -94,16 +118,20 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) runRetention(ctx context.Context) {
-	if s.cfg.RetentionPeriod <= 0 {
-		return
-	}
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	prune := func() {
-		cutoff := time.Now().UTC().Add(-s.cfg.RetentionPeriod)
-		if err := s.db.PruneBefore(cutoff); err != nil {
-			slog.Warn("retention prune failed", "error", err, "cutoff", cutoff)
+		if s.cfg.RetentionPeriod > 0 {
+			cutoff := time.Now().UTC().Add(-s.cfg.RetentionPeriod)
+			if err := s.db.PruneBefore(cutoff); err != nil {
+				slog.Warn("retention prune failed", "error", err, "cutoff", cutoff)
+			}
+		}
+		s.manager.expireHostedTunnels(time.Now())
+		cutoff := time.Now().UTC().Add(-s.cfg.HostedRetention)
+		if err := s.db.PruneHostedBefore(cutoff); err != nil {
+			slog.Warn("hosted retention prune failed", "error", err, "cutoff", cutoff)
 		}
 	}
 
