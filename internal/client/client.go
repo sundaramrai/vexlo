@@ -1,9 +1,12 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,7 +21,6 @@ import (
 type Config struct {
 	ServerAddr           string
 	LocalPort            int
-	RegisterToken        string
 	EnableTLS            bool
 	ServerName           string
 	RequestTimeout       time.Duration
@@ -39,6 +41,10 @@ func Run(ctx context.Context, cfg Config) error {
 	var resumeToken string
 	for {
 		if err := runOnce(ctx, cfg, &sessionID, &resumeToken); err != nil {
+			var rejected resumeRejectedError
+			if errors.As(err, &rejected) {
+				sessionID, resumeToken = "", ""
+			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -52,50 +58,91 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 }
 
+type resumeRejectedError struct{ reason string }
+
+func (e resumeRejectedError) Error() string { return e.reason }
+
 func runOnce(ctx context.Context, cfg Config, sessionID *string, resumeToken *string) error {
-	_ = ctx
-	var conn net.Conn
-	var err error
-	if cfg.EnableTLS {
-		serverName := cfg.ServerName
-		if serverName == "" {
-			host, _, splitErr := net.SplitHostPort(cfg.ServerAddr)
-			if splitErr != nil {
-				return fmt.Errorf("derive tunnel TLS server name: %w", splitErr)
-			}
-			serverName = host
-		}
-		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", cfg.ServerAddr, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: serverName})
-	} else {
-		conn, err = net.DialTimeout("tcp", cfg.ServerAddr, 5*time.Second)
-	}
+	conn, err := dialServer(cfg)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
 
-	reg := protocol.Register{
-		SessionID:      *sessionID,
-		LocalPort:      cfg.LocalPort,
-		ConnectionType: "tcp",
-		ClientToken:    cfg.RegisterToken,
-		ResumeToken:    *resumeToken,
-	}
-	if err := protocol.Encode(conn, protocol.TypeRegister, reg); err != nil {
+	reader := bufio.NewReader(conn)
+	registered, err := registerTunnel(conn, reader, cfg, *sessionID, *resumeToken)
+	if err != nil {
 		return err
-	}
-
-	reader := newReader(conn)
-	var registered protocol.Registered
-	kind, err := protocol.Decode(reader, &registered)
-	if err != nil || kind != protocol.TypeRegistered {
-		return fmt.Errorf("register failed: %w", err)
 	}
 	*sessionID = registered.SessionID
 	*resumeToken = registered.TunnelToken
 	log.Printf("%s -> localhost:%d", registered.ConnectURL, cfg.LocalPort)
 	log.Printf("dashboard: %s", registered.DashboardURL)
+	log.Printf("Anyone with the public URL can access your local app. Keep the dashboard link private.")
+	return serveTunnel(conn, reader, cfg)
+}
 
+func dialServer(cfg Config) (net.Conn, error) {
+	if !cfg.EnableTLS {
+		return net.DialTimeout("tcp", cfg.ServerAddr, 5*time.Second)
+	}
+	serverName := cfg.ServerName
+	if serverName == "" {
+		host, _, err := net.SplitHostPort(cfg.ServerAddr)
+		if err != nil {
+			return nil, fmt.Errorf("derive tunnel TLS server name: %w", err)
+		}
+		serverName = host
+	}
+	return tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", cfg.ServerAddr, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: serverName})
+}
+
+func registerTunnel(conn net.Conn, reader *bufio.Reader, cfg Config, sessionID, resumeToken string) (protocol.Registered, error) {
+	reg := protocol.Register{
+		SessionID:      sessionID,
+		LocalPort:      cfg.LocalPort,
+		ConnectionType: "tcp",
+		ResumeToken:    resumeToken,
+		Quick:          true,
+	}
+	if err := protocol.Encode(conn, protocol.TypeRegister, reg); err != nil {
+		return protocol.Registered{}, err
+	}
+	var payload json.RawMessage
+	kind, err := protocol.Decode(reader, &payload)
+	if err != nil {
+		return protocol.Registered{}, fmt.Errorf("register failed: %w", err)
+	}
+	if kind == protocol.TypeError {
+		var failure protocol.Error
+		if err := json.Unmarshal(payload, &failure); err != nil {
+			return protocol.Registered{}, fmt.Errorf("decode registration error: %w", err)
+		}
+		if sessionID != "" && (failure.Message == "quick tunnel expired" || failure.Message == "invalid session resume" || failure.Message == "invalid session mode" || failure.Message == "invalid resume token") {
+			return protocol.Registered{}, resumeRejectedError{reason: failure.Message}
+		}
+		return protocol.Registered{}, fmt.Errorf("register failed: %s", failure.Message)
+	}
+	if kind != protocol.TypeRegistered {
+		return protocol.Registered{}, fmt.Errorf("unexpected registration response: %s", kind)
+	}
+	var registered protocol.Registered
+	if err := json.Unmarshal(payload, &registered); err != nil {
+		return protocol.Registered{}, fmt.Errorf("decode registration response: %w", err)
+	}
+	return registered, nil
+}
+
+func serveTunnel(conn net.Conn, reader *bufio.Reader, cfg Config) error {
 	var writeMu sync.Mutex
 	send := func(kind string, value any) error {
 		writeMu.Lock()
