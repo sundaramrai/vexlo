@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Vexlo is a self-hosted tunnel for exposing local applications and inspecting HTTP traffic."
+      content="Vexlo gives developers temporary public HTTPS URLs for local applications and a private request dashboard."
     />
     <title>Vexlo — secure local tunnels</title>
     <link rel="stylesheet" href="/assets/landing.css" />
@@ -19,13 +19,27 @@
       </nav>
 
       <section class="hero">
-        <div class="eyebrow">Self-hosted local tunnels</div>
+        <div class="eyebrow">Quick tunnels for developers</div>
         <h1>Expose local apps. Inspect every request.</h1>
         <p>
           Vexlo securely connects a local development server to a public URL,
           captures HTTP traffic, and lets you inspect or replay requests from
           your dashboard.
         </p>
+        <p>
+          One command to install, then <code>vexlo http 3000</code>. No account
+          or shared token is required.
+        </p>
+        <div class="install-commands" aria-label="Install Vexlo">
+          <div>
+            <h2>macOS / Linux</h2>
+            <pre><code>curl -fsSL https://vexlo.duckdns.org/install.sh | sh</code></pre>
+          </div>
+          <div>
+            <h2>Windows PowerShell</h2>
+            <pre><code>irm https://vexlo.duckdns.org/install.ps1 | iex</code></pre>
+          </div>
+        </div>
         <div class="actions">
           <a class="button" href="/app">Open dashboard</a>
           <a
@@ -54,15 +68,15 @@
         <article>
           <h2>Security by default</h2>
           <p>
-            Use TLS, authenticated tunnel registration, body limits, retention
-            controls, and a private dashboard.
+            TLS, temporary URLs, body limits, retention controls, and a private
+            dashboard protect the service. Anyone with your public tunnel URL
+            can reach your local app while it is connected.
           </p>
         </article>
       </section>
 
       <footer>
-        Vexlo is currently self-hosted. Dashboard access is restricted to
-        authorized users.
+        Keep your dashboard link private. Stop the CLI to close the tunnel.
       </footer>
     </main>
   </body>
