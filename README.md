@@ -1,230 +1,71 @@
 # Vexlo
 
-Vexlo is a self-hosted localhost tunnel written in Go. It exposes a local port through a server, captures requests and responses, persists them to SQLite, and provides a terminal-style dashboard for replay and mutation.
+Vexlo gives a local development server a temporary public HTTPS URL and a
+private dashboard for inspecting, replaying, and mutating HTTP requests.
 
-## What is included
+## Status
 
-- Binary TCP tunnel client/server
-- SQLite persistence for sessions, requests, and replays
-- Embedded dashboard assets with live updates over WebSocket
-- Replay with request mutation
-- GitHub Actions release workflow
+The next version is being developed as a hosted-only product. The working-tree
+CLI accepts `vexlo http <port>` and no longer supports the old shared-token
+client flow. **The published release and live VPS have not been switched to
+this version.** Do not run the draft installers expecting the hosted command
+to work until a new release is published and the server is deliberately enabled.
 
-## Positioning
+See [the hosted-service plan](docs/hosted-service-plan.md) for launch checks.
 
-Vexlo is currently packaged as a self-hosted tunnel server.
+## Developer experience after launch
 
-- You can run it locally for development.
-- You can deploy it on your own VPS when you have infrastructure.
-- You do not need an official hosted Vexlo service to use it.
+Install with one command for your shell (these endpoints become available when
+the new hosted server is deployed):
 
-## Project layout
+macOS / Linux:
 
-```text
-cmd/server          Server entrypoint
-cmd/client          Client CLI entrypoint
-internal/server     HTTP/API/tunnel server implementation
-internal/client     Tunnel client implementation
-internal/model      Shared data models
-internal/storage    SQLite layer
-internal/dashboard  Embedded dashboard HTML/CSS/JS + websocket hub
-internal/protocol   Framed transport protocol
+```sh
+curl -fsSL https://vexlo.duckdns.org/install.sh | sh
 ```
-
-## Quick start
-
-### 1. Prerequisites
-
-- Go 1.25.13 or newer
-
-### 2. Run the server
-
-```bash
-go run ./cmd/server \
-  --http-addr :8080 \
-  --tcp-addr :9000 \
-  --base-domain localhost \
-  --host-url http://localhost:8080 \
-  --capture-body-limit 262144 \
-  --registration-token change-me-dev-token
-```
-
-This starts:
-
-- Dashboard/API on `http://localhost:8080`
-- Binary tunnel listener on `127.0.0.1:9000`
-- SQLite database at `./vexlo.db` by default, configurable with `--db`
-- Health endpoint at `http://localhost:8080/healthz`
-
-By default, Vexlo stores up to `256 KiB` of each request and response body for dashboard history and replay. Use `--capture-body-limit 0` to disable the limit.
-Tunnel registration requires `--registration-token`.
-
-With defaults, this can usually be shortened to:
-
-```bash
-go run ./cmd/server --registration-token change-me-dev-token
-```
-
-### 3. Run your local app
-
-For example, start your app on port `3000`.
-
-### 4. Start the Vexlo client
-
-Binary mode:
-
-```bash
-go run ./cmd/client --server 127.0.0.1:9000 --register-token change-me-dev-token 3000
-```
-
-With defaults, this can usually be shortened to:
-
-```bash
-go run ./cmd/client --register-token change-me-dev-token 3000
-```
-
-The client prints:
-
-- Public tunnel path, for local development this is `http://localhost:8080/t/<subdomain>`
-- Dashboard URL with the session token baked in
-
-For a safe Windows-only demo, use `./scripts/start-local.ps1 -StartExampleApp`.
-It serves only `examples/http-server`, not the repository root.
-
-### 5. Use the dashboard
-
-Open the printed dashboard URL. From there you can:
-
-- Inspect requests in real time
-- Replay requests
-- Mutate headers/body before replay
-
-The server root (`/`) is a public landing page. The dashboard is at `/app` and
-remains protected by the configured dashboard authentication. Public tunnel
-URLs continue to be reachable without dashboard credentials.
-
-## Build binaries
-
-```bash
-go build -o dist/vexlo-server ./cmd/server
-go build -o dist/vexlo ./cmd/client
-```
-
-Cross-platform release artifacts are built automatically by the tag-triggered GitHub release workflow in [.github/workflows/release.yml](.github/workflows/release.yml).
-
-## Release
-
-For a public release, follow [RELEASE.md](RELEASE.md).
-
-Release assets include:
-
-- Linux server archives for `amd64` and `arm64`
-- Linux client archives for `amd64` and `arm64`
-- macOS client archives for `amd64` and `arm64`
-- Windows client zip for `amd64`
-- `SHA256SUMS.txt`
-
-## Linting
-
-Linting is enabled through GitHub Actions and `golangci-lint`.
-
-Current checks:
-
-- `gofmt` formatting check
-- `golangci-lint`
-- `go build ./...`
-
-## Local checks
-
-Install `golangci-lint` locally first:
-
-<https://golangci-lint.run/welcome/install/>
 
 Windows PowerShell:
 
 ```powershell
-.\scripts\check.ps1
+irm https://vexlo.duckdns.org/install.ps1 | iex
 ```
 
-Linux or macOS:
+The installer detects the platform and architecture and verifies the release
+archive against its published SHA-256 checksum. It does not require administrator
+privileges. On systems without a writable executable directory already on PATH,
+open a new terminal after installation; the installer sets up PATH automatically.
+Start your local app on port 3000, then run:
 
-```bash
-./scripts/check.sh
+```text
+vexlo http 3000
 ```
 
-Equivalent manual commands:
+The CLI prints a temporary public URL and a private dashboard link. Anyone
+with the public URL can reach your local app while the CLI is connected. Keep
+the dashboard link private. No account or operator-issued token is required.
+
+The tunnel lasts at most eight hours, with a brief reconnect grace period.
+Captured data is deleted after the configured hosted retention period. The
+hosted operator can inspect traffic passing through the service; do not expose
+a sensitive local app without additional protection.
+
+## For contributors and operators
+
+- [Deployment guide](deploy/README.md) explains the VPS service, TLS, explicit
+  hosted activation, backups, and operator controls.
+- [Release guide](RELEASE.md) describes verification before tagging.
+- [Hosted-service plan](docs/hosted-service-plan.md) tracks launch gates.
+
+The code is organized under `cmd/client`, `cmd/server`, and `internal/` for the
+CLI, server, protocol, dashboard, and SQLite storage. Go 1.25.13 or newer is
+required to build it:
 
 ```bash
-gofmt -l cmd internal
-golangci-lint run
+go test ./...
+go vet ./...
 go build ./...
 ```
 
-## Production notes
-
-- For real public subdomains, run the server behind a DNS name and pass `--base-domain your-domain.example`.
-- For TLS, start the server with `--tls`, expose ports `80` and `443`, and point your base domain plus subdomains at the VPS.
-- Public deployments must also use `--tunnel-tls` and clients must use `--tls --server-name your-domain.example`; otherwise the binary tunnel is plaintext.
-- Dynamic tunnel subdomains need a wildcard certificate from a DNS-01 capable issuer. Use `--tls-cert` / `--tls-key` for the dashboard certificate and, when the DNS provider cannot validate both names in one request, `--tls-extra-cert` / `--tls-extra-key` for the wildcard certificate. HTTP-01 autocert is appropriate for a stable dashboard hostname, not unlimited generated subdomains.
-- The current local-first flow uses `/t/<subdomain>` when `--base-domain localhost`.
-- For production, set a non-empty `--registration-token` and distribute it only to trusted clients.
-- The dashboard token is now moved into an `HttpOnly` cookie and stripped from the browser address bar on first load.
-- Configure `--retention-period` explicitly based on your storage and compliance requirements.
-- Configure `--max-request-body-bytes`, `--max-api-body-bytes`, and the HTTP timeout flags for your workload instead of relying on defaults.
-- API responses include `X-Request-Id`, and server logs now emit request IDs plus status and duration metadata for API and WebSocket endpoints.
-- Generic deployment artifacts for `systemd` and self-hosting are in [deploy/README.md](deploy/README.md).
-
-## Production server example
-
-```bash
-export VEXLO_REGISTRATION_TOKEN=replace-with-strong-secret
-export VEXLO_ADMIN_USER=vexlo-admin
-export VEXLO_ADMIN_PASS=replace-with-strong-password
-
-./vexlo-server \
-  --tls \
-  --tunnel-tls \
-  --tls-cert /etc/vexlo/certs/dashboard-fullchain.pem \
-  --tls-key /etc/vexlo/certs/dashboard-privkey.pem \
-  --tls-extra-cert /etc/vexlo/certs/wildcard-fullchain.pem \
-  --tls-extra-key /etc/vexlo/certs/wildcard-privkey.pem \
-  --http-addr :80 \
-  --https-addr :443 \
-  --tcp-addr :9000 \
-  --base-domain vexlo.example.com \
-  --host-url https://vexlo.example.com \
-  --capture-body-limit 262144 \
-  --retention-period 168h \
-  --acme-email you@example.com \
-  --acme-cache ./acme-cache
-```
-
-## Deployment
-
-The repo includes ready-to-use deployment files for a Linux VPS:
-
-- [deploy/systemd/vexlo.service](deploy/systemd/vexlo.service)
-- [deploy/env/vexlo.env.example](deploy/env/vexlo.env.example)
-- [deploy/scripts/install_ubuntu.sh](deploy/scripts/install_ubuntu.sh)
-
-Typical flow on an Ubuntu VPS:
-
-```bash
-chmod +x deploy/scripts/install_ubuntu.sh
-sudo ./deploy/scripts/install_ubuntu.sh \
-  vexlo.example.com \
-  https://vexlo.example.com \
-  you@example.com \
-  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz \
-  https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt
-sudo systemctl start vexlo
-sudo journalctl -u vexlo -f
-```
-
-## Verification
-
-```bash
-go build ./...
-```
-
-For release history, see [CHANGELOG.md](CHANGELOG.md).
+Release artifacts are built by [.github/workflows/release.yml](.github/workflows/release.yml)
+for Linux, macOS, and Windows on amd64 and arm64 (the server is packaged for
+Linux). Historical releases remain documented in [CHANGELOG.md](CHANGELOG.md).
