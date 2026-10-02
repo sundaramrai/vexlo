@@ -8,7 +8,7 @@ fi
 
 if [[ $# -lt 3 ]]; then
   echo "Usage: $0 <base-domain> <host-url> <acme-email> [binary-url] [checksums-url]"
-  echo "Example: $0 vexlo.example.com https://vexlo.example.com you@example.com https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/vexlo-server-linux-amd64.tar.gz https://github.com/sundaramrai/vexlo/releases/download/v0.1.3/SHA256SUMS.txt"
+  echo "Example: $0 vexlo.example.com https://vexlo.example.com you@example.com https://github.com/sundaramrai/vexlo/releases/download/vX.Y.Z/vexlo-server-linux-amd64.tar.gz https://github.com/sundaramrai/vexlo/releases/download/vX.Y.Z/SHA256SUMS.txt"
   exit 1
 fi
 
@@ -19,7 +19,7 @@ BINARY_URL="${4:-}"
 CHECKSUMS_URL="${5:-}"
 
 apt-get update
-apt-get install -y curl ca-certificates ufw cron tar
+apt-get install -y curl ca-certificates ufw cron tar sqlite3
 
 id -u vexlo >/dev/null 2>&1 || useradd --system --home /opt/vexlo --shell /usr/sbin/nologin vexlo
 
@@ -71,7 +71,7 @@ VEXLO_TLS_CERT=/etc/vexlo/certs/dashboard-fullchain.pem
 VEXLO_TLS_KEY=/etc/vexlo/certs/dashboard-privkey.pem
 VEXLO_TLS_EXTRA_CERT=/etc/vexlo/certs/wildcard-fullchain.pem
 VEXLO_TLS_EXTRA_KEY=/etc/vexlo/certs/wildcard-privkey.pem
-VEXLO_REGISTRATION_TOKEN=replace-with-long-random-token
+VEXLO_HOSTED_MODE=false
 VEXLO_ADMIN_USER=admin
 VEXLO_ADMIN_PASS=replace-with-strong-password
 VEXLO_CAPTURE_BODY_LIMIT=262144
@@ -101,6 +101,6 @@ systemctl enable cron
 echo "Install complete."
 echo "Next steps:"
 echo "1. Put the server binary at /opt/vexlo/vexlo-server if you did not pass a binary URL."
-echo "2. Edit /etc/vexlo/vexlo.env and replace the placeholder registration/admin secrets."
-echo "3. Start the service with: systemctl start vexlo"
+echo "2. Configure TLS certificates and replace the placeholder VEXLO_ADMIN_PASS in /etc/vexlo/vexlo.env."
+echo "3. After hosted launch checks, set VEXLO_HOSTED_MODE=true and start the service: systemctl start vexlo"
 echo "4. Inspect logs with: journalctl -u vexlo -f"
