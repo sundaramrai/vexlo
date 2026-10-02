@@ -34,8 +34,8 @@ type Register struct {
 	SessionID      string `json:"session_id,omitempty"`
 	LocalPort      int    `json:"local_port"`
 	ConnectionType string `json:"connection_type"`
-	ClientToken    string `json:"client_token,omitempty"`
 	ResumeToken    string `json:"resume_token,omitempty"`
+	Quick          bool   `json:"quick,omitempty"`
 }
 
 type Registered struct {
@@ -45,7 +45,6 @@ type Registered struct {
 	DashboardURL   string    `json:"dashboard_url"`
 	ConnectionType string    `json:"connection_type"`
 	StartedAt      time.Time `json:"started_at"`
-	AuthToken      string    `json:"auth_token"`
 	TunnelToken    string    `json:"tunnel_token"`
 }
 
