@@ -182,8 +182,8 @@ func TestHostedOperatorCanPauseAndRevoke(t *testing.T) {
 		t.Fatalf("pause was not persisted: %t, %v", persisted, err)
 	}
 	serverConn, clientConn := net.Pipe()
-	defer serverConn.Close()
-	defer clientConn.Close()
+	defer func() { _ = serverConn.Close() }()
+	defer func() { _ = clientConn.Close() }()
 	if _, _, err := manager.Register(serverConn, protocol.Register{LocalPort: 3000, Quick: true}); err == nil {
 		t.Fatal("new hosted registration allowed while paused")
 	}
