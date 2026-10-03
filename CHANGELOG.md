@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.1
+
+- fix the Windows one-line installer when PowerShell reports no OS architecture
+- test the installer in Windows PowerShell 5.1 and cover the missing-architecture fallback
+
+## v0.2.0
+
+- replace the shared registration-token flow with hosted quick tunnels and
+  `vexlo http <port>`
+- scope dashboard access and reconnect credentials to individual tunnels
+- add bounded tunnel lifetimes, rate and concurrency limits, and operator controls
+- publish one-line Windows, macOS, and Linux installers with verified release checksums
+- make hosted mode an explicit server setting with a fail-closed default
+
 ## v0.1.7
 
 - upgrade `modernc.org/sqlite` from v1.37.1 to v1.58.0

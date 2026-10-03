@@ -1,8 +1,8 @@
 # Release Guide
 
-The next release changes Vexlo to a hosted-only tunnel service and CLI. Do not
-tag it until the hosted launch checks are complete and the server deployment is
-ready. Existing published releases retain their historical behavior.
+Vexlo has been hosted-only since v0.2.0. This guide covers subsequent releases;
+older published releases retain their historical behavior. Do not treat a
+successful build as proof that all live-service checks have passed.
 
 ## Scope
 
@@ -14,29 +14,39 @@ ready. Existing published releases retain their historical behavior.
 1. Confirm the working tree is in the state you want to publish.
 2. Run local verification:
 
-```bash
-go test ./...
-go vet ./...
-go build ./...
-```
+   ```bash
+   go test ./...
+   go vet ./...
+   go build ./...
+   ```
 
-Run `sh scripts/test_install.sh` on Linux or macOS. CI also runs the Windows
-installer fixture test on a disposable Windows runner. Do not run that test on
-your everyday Windows account: it temporarily updates the user PATH.
-
-1. Read [README.md](README.md) and [deploy/README.md](deploy/README.md) once as a user, not as the author.
-2. Complete the remaining checks in [the hosted-service plan](docs/hosted-service-plan.md): real cross-platform tunnels and dashboard access, installation from the tagged artifacts, load limits, backup restoration, and monitoring/abuse contact. Confirm all installer CI jobs pass.
-3. Update [CHANGELOG.md](CHANGELOG.md) for the breaking removal of the shared-token CLI and server flow.
-4. Prepare the VPS configuration with `VEXLO_HOSTED_MODE=true`, working dashboard and wildcard TLS, and operator credentials. Do not install the new binary with `VEXLO_HOSTED_MODE=false`: it will intentionally refuse to start.
+3. Run `sh scripts/test_install.sh` on Linux or macOS. CI also runs the Windows
+   installer fixture test in PowerShell 7 and Windows PowerShell 5.1 on a
+   disposable runner. Do not run that test on your everyday Windows account:
+   it temporarily updates the user PATH.
+4. Read [README.md](README.md) and [deploy/README.md](deploy/README.md) once
+   as a user, not as the author.
+5. Confirm CI, including installer jobs, passes. For a feature or
+   public-readiness claim, complete the relevant on-device and operational
+   checks in [the hosted-service plan](docs/hosted-service-plan.md); CI
+   fixture tests alone do not prove them.
+6. Update [CHANGELOG.md](CHANGELOG.md) for the release.
+7. Prepare any required VPS configuration changes, including TLS and operator
+   credentials. The server fails closed if hosted mode is disabled; do not
+   expect a public listener with `VEXLO_HOSTED_MODE=false`.
 
 ## Tagging A Release
 
 Create and push the release version as a semantic version tag:
 
 ```bash
-git tag vX.Y.Z
-git push origin vX.Y.Z
+git tag -a vX.Y.Z -m "Vexlo vX.Y.Z"
+git remote -v
+git push master vX.Y.Z
 ```
+
+This checkout uses `master` as its remote name. If `git remote -v` shows a
+different name in your clone, use that name instead.
 
 That triggers [.github/workflows/release.yml](.github/workflows/release.yml), which publishes:
 

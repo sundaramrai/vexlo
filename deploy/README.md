@@ -1,10 +1,10 @@
 # Deployment
 
 This directory contains deployment artifacts for the operator-managed hosted
-Vexlo server on a Linux VPS. The next server binary supports only hosted
-tunnels, but `VEXLO_HOSTED_MODE` defaults to `false` and the binary refuses to
-start until the operator deliberately enables it. The published release and
-live VPS have not yet been switched to this version.
+Vexlo server on a Linux VPS. Since v0.2.0 the server supports only hosted
+tunnels. The deployment template keeps `VEXLO_HOSTED_MODE=false` as a
+fail-closed default; the live `vexlo.duckdns.org` service has hosted mode
+enabled. A new deployment must enable it deliberately.
 
 ## Included files
 
@@ -38,8 +38,8 @@ sudo ./deploy/scripts/install_ubuntu.sh \
   https://github.com/OWNER/REPO/releases/download/vX.Y.Z/SHA256SUMS.txt
 ```
 
-Use the actual hosted release tag and architecture. This is an operator
-example, not a command to run against the current published release. Edit
+Replace the example hostname, repository, release tag, and architecture with
+values for your deployment. This is an operator example for a new VPS. Edit
 `/etc/vexlo/vexlo.env` before starting the new server:
 
 ```bash
@@ -47,8 +47,8 @@ sudo nano /etc/vexlo/vexlo.env
 ```
 
 Set strong `VEXLO_ADMIN_PASS` credentials and `VEXLO_HOSTED_MODE=true` only
-after completing the launch checks. The new binary has no registration-token
-setting or legacy token-based tunnel mode. A service configured with
+when the deployment is ready to accept public tunnels. The binary has no
+registration-token setting or legacy token-based tunnel mode. A service configured with
 `VEXLO_HOSTED_MODE=false` will fail closed rather than start a public listener.
 Ensure dashboard and wildcard certificate paths are valid, then start and
 inspect the service:
@@ -137,6 +137,6 @@ sudo /opt/vexlo/backup_vexlo.sh
 
 That captures a consistent snapshot of `/var/lib/vexlo/vexlo.db`, including
 committed WAL transactions. The helper requires `sqlite3`; do not copy a live
-WAL database and its sidecar files separately. Before hosted launch, restore
-a backup into a separate test directory and verify both integrity and the
-expected session/request data. This has not yet been verified on the VPS.
+WAL database and its sidecar files separately. Before relying on backups for
+recovery, restore one into a separate test directory and verify both integrity
+and the expected session/request data. A VPS restore has not yet been verified.

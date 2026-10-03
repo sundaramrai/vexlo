@@ -15,11 +15,11 @@ Go, configure DNS, or run a server. The public URL works while the CLI is
 connected and expires when the tunnel ends. The person operating hosted Vexlo
 still maintains its server, DNS, TLS, capacity, and support.
 
-This is the target for the next release. Today's published release and VPS
-still use the old registration-token flow. The working tree removes that flow:
-the CLI exposes only `vexlo http <port>`, and the new server accepts only
-explicitly enabled hosted mode. Neither the released CLI nor the live service
-provides this new flow yet.
+The hosted-only flow shipped in v0.2.0 and is running on the VPS; v0.2.1
+fixes Windows installer architecture detection. The shared registration-token
+flow was removed. The live Windows installer and a real tunnel have been
+tested, but that does not complete every cross-platform and operational check
+below.
 
 ## First release: temporary tunnels
 
@@ -39,9 +39,9 @@ provides this new flow yet.
   a sensitive local app without additional protection.
 - Anonymous registration is enabled only when the operator explicitly sets
   hosted mode. With the default disabled setting, the new server fails closed.
-  There is no self-hosted compatibility path in the next binary.
+  There is no legacy self-hosted compatibility path in the current binary.
 
-## Minimum work before opening registration to everyone
+## Operational checks for public registration
 
 - Bound registrations, active tunnels, concurrent requests, request and
   captured-body sizes, storage use, and session lifetime. Use fair limits for
@@ -74,27 +74,31 @@ not prerequisites for temporary tunnels.
    contact, and allow anyone to start a temporary tunnel without an invite.
    Monitor usage and adjust limits from real demand.
 
-The first release is done when a new developer on each supported OS can
+Full cross-platform acceptance is met when a new developer on each supported OS can
 install, run `vexlo http 3000`, send a request through the public URL, view it
 privately, and stop the tunnel without contacting the operator.
 
-## Implementation status (not a launch approval)
+## Current status and remaining checks
 
-The working tree includes quick-mode registration, per-tunnel hashed secrets,
-single-use dashboard handoff, scoped cookies, expiry and retention, rate and
-concurrency limits, a pause/revoke operator API, cross-platform release builds,
-and one-line installer endpoints. The token-based path has been removed from the working
-tree. Deployment templates still set `VEXLO_HOSTED_MODE=false` as a fail-closed
-default; the new binary will not start until the operator enables hosted mode.
-Unit tests and local cross-compilation pass.
+The v0.2.1 release and VPS deployment provide anonymous quick-tunnel
+registration, per-tunnel hashed secrets, single-use dashboard handoff, scoped
+cookies, expiry and retention, rate and concurrency limits, a pause/revoke
+operator API, cross-platform release builds, and one-line installer endpoints.
+The legacy token-based path is gone. Deployment templates still set
+`VEXLO_HOSTED_MODE=false` by default; the live VPS explicitly enables it.
 
-Before a public release, still verify a real tunnel and private dashboard on
-Windows, macOS, and Linux; test installation from the *new* tagged release;
-load-test the intended VPS and set published limits from those results; restore
-and inspect a production backup; add monitoring and a support/abuse contact;
-and deliberately update the VPS binary and service config. A local cross-build
-does not substitute for those checks. Do not turn on anonymous registration
-or advertise the installer as ready until they pass.
+The release workflow succeeded, the VPS health check passed, and the Windows
+one-line installer and a real tunnel were tested against the live service.
+Installer fixture tests run in CI for Windows, macOS, and Linux; those tests
+do not replace a real install, tunnel, and private-dashboard check on macOS
+and Linux. Live dashboard access on the current release should also be
+confirmed explicitly.
+
+Public registration is already enabled on the VPS. Before treating this as a
+fully validated public launch, load-test the VPS and publish measured limits;
+restore and inspect a production backup; verify monitoring and a support/abuse
+contact; and complete the remaining on-device checks. These items are not
+confirmed by the tests or observations above.
 
 ## Later, if needed
 

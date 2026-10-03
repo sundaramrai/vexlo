@@ -5,18 +5,16 @@ private dashboard for inspecting, replaying, and mutating HTTP requests.
 
 ## Status
 
-The next version is being developed as a hosted-only product. The working-tree
-CLI accepts `vexlo http <port>` and no longer supports the old shared-token
-client flow. **The published release and live VPS have not been switched to
-this version.** Do not run the draft installers expecting the hosted command
-to work until a new release is published and the server is deliberately enabled.
+Vexlo v0.2.1 is released, and the hosted-only server is running at
+`vexlo.duckdns.org`. The CLI accepts `vexlo http <port>` without an
+operator-issued registration token. The Windows one-line install and a real
+tunnel have been tested against the live service. On-device macOS and Linux
+install-and-tunnel checks and the remaining operational checks are still
+tracked in [the hosted-service plan](docs/hosted-service-plan.md).
 
-See [the hosted-service plan](docs/hosted-service-plan.md) for launch checks.
+## Install and use
 
-## Developer experience after launch
-
-Install with one command for your shell (these endpoints become available when
-the new hosted server is deployed):
+Install with one command for your shell:
 
 macOS / Linux:
 
